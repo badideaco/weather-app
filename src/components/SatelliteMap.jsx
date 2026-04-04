@@ -3,11 +3,10 @@ import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-// NASA GIBS satellite layers — reliable WMTS with CORS
+// NASA GIBS satellite layers — only products that support no-date (latest available) at Level6
 const GIBS_LAYERS = [
-  { id: 'geocolor', label: 'GeoColor', layer: 'GOES-East_ABI_GeoColor', ext: 'jpg' },
   { id: 'infrared', label: 'Infrared', layer: 'GOES-East_ABI_Band13_Clean_Infrared', ext: 'png' },
-  { id: 'water', label: 'Water Vapor', layer: 'GOES-East_ABI_Band08_Upper_Level_Water_Vapor', ext: 'png' },
+  { id: 'airmass', label: 'Air Mass', layer: 'GOES-East_ABI_Air_Mass', ext: 'png' },
 ]
 
 function GIBSOverlay({ layerId, ext }) {
