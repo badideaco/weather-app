@@ -8,6 +8,10 @@ import RadarMap from './components/RadarMap'
 import SpaceWeather from './components/SpaceWeather'
 import Astronomy from './components/Astronomy'
 import FlightTracker from './components/FlightTracker'
+import WeatherAmbient from './components/WeatherAmbient'
+import WindRose from './components/WindRose'
+import UVTimer from './components/UVTimer'
+import ClothingRec from './components/ClothingRec'
 
 const STORAGE_KEY = 'stormscope-location'
 const NOTIF_KEY = 'stormscope-notif'
@@ -271,10 +275,16 @@ export default function App() {
 
   const currentPeriod = weather?.[0]
 
+  const ambientDesc = observation?.description || currentPeriod?.shortForecast
+  const ambientDaytime = currentPeriod?.isDaytime
+
   return (
-    <div className="min-h-dvh bg-bg safe-top safe-bottom">
+    <div className="min-h-dvh bg-bg safe-top safe-bottom relative">
+      {/* Ambient weather animation */}
+      {ambientDesc && <WeatherAmbient description={ambientDesc} isDaytime={ambientDaytime} />}
+
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50 px-4 py-3">
+      <header className="sticky top-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50 px-4 py-3 relative">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <svg viewBox="0 0 24 24" className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
@@ -312,7 +322,7 @@ export default function App() {
       </header>
 
       {/* Content */}
-      <main className="max-w-2xl mx-auto px-4 pb-8">
+      <main className="max-w-2xl mx-auto px-4 pb-8 relative z-10">
         {error && !weather && (
           <div className="mt-8 text-center">
             <p className="text-danger mb-4">{error}</p>
@@ -324,6 +334,23 @@ export default function App() {
 
         {(observation || currentPeriod) && (
           <CurrentWeather observation={observation} period={currentPeriod} forecast={weather} />
+        )}
+
+        {/* Wind + UV + Clothing row */}
+        {observation && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <WindRose direction={observation.windDirection} speed={observation.windSpeed} gust={observation.windGust} />
+            <div className="space-y-4">
+              <UVTimer uvIndex={currentPeriod?.isDaytime ? 5 : 0} />
+              <ClothingRec
+                temp={observation.temperature}
+                wind={observation.windSpeed}
+                humidity={observation.humidity}
+                conditions={observation.description}
+                uvIndex={currentPeriod?.isDaytime ? 5 : 0}
+              />
+            </div>
+          </div>
         )}
 
         {hourly && <HourlyForecast periods={hourly} />}
