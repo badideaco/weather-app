@@ -18,7 +18,7 @@ function RadarOverlay({ frames, host, currentFrame }) {
     const frame = frames[currentFrame]
     if (!frame) return
 
-    const url = `${host}${frame.path}/512/{z}/{x}/{y}/6/1_1.png`
+    const url = `${host}${frame.path}/{z}/{x}/{y}.png`
     if (url === prevUrlRef.current) return
     prevUrlRef.current = url
 
@@ -28,8 +28,6 @@ function RadarOverlay({ frames, host, currentFrame }) {
       layerRef.current = L.tileLayer(url, {
         opacity: 0.65,
         zIndex: 10,
-        tileSize: 512,
-        zoomOffset: -1,
       })
       layerRef.current.addTo(map)
     }
@@ -174,6 +172,14 @@ export default function RadarMap({ lat, lon, alerts }) {
     getRadarFrames()
       .then(data => { setRadarData(data); setCurrentFrame(data.frames.length - 1); setLoading(false) })
       .catch(() => setLoading(false))
+
+    // Refresh radar data every 5 minutes (NEXRAD tiles are relative to server time)
+    const timer = setInterval(() => {
+      getRadarFrames()
+        .then(data => { if (data?.frames?.length) setRadarData(data) })
+        .catch(() => {})
+    }, 5 * 60 * 1000)
+    return () => clearInterval(timer)
   }, [])
 
   const togglePlay = useCallback(() => setPlaying(prev => !prev), [])
@@ -186,23 +192,19 @@ export default function RadarMap({ lat, lon, alerts }) {
     }
 
     const totalFrames = radarData.frames.length
-    // Last past frame = the most recent actual radar image (not a forecast)
-    const lastPastIdx = radarData.frames.reduce((acc, f, i) => !f.forecast ? i : acc, 0)
-    const dwellFrames = new Set([lastPastIdx, totalFrames - 1])
-    const DWELL_TICKS = 3 // Extra ticks to pause (3 × 400ms = 1.2s dwell)
-
+    const DWELL_TICKS = 4 // Extra ticks to pause on latest frame (4 × 350ms = 1.4s dwell)
     dwellRef.current = 0
 
     intervalRef.current = setInterval(() => {
       setCurrentFrame(prev => {
-        if (dwellFrames.has(prev) && dwellRef.current < DWELL_TICKS) {
+        if (prev === totalFrames - 1 && dwellRef.current < DWELL_TICKS) {
           dwellRef.current++
-          return prev // Hold on this frame
+          return prev
         }
         dwellRef.current = 0
         return (prev + 1) % totalFrames
       })
-    }, 400)
+    }, 350)
 
     return () => clearInterval(intervalRef.current)
   }, [playing, radarData])
@@ -231,10 +233,6 @@ export default function RadarMap({ lat, lon, alerts }) {
     ? formatTime(new Date(currentFrameData.time * 1000))
     : ''
   const relTime = currentFrameData ? relativeLabel(currentFrameData.time) : ''
-  const isForecast = currentFrameData?.forecast
-
-  // Find boundary between past and forecast for scrubber markers
-  const lastPastIdx = radarData?.frames?.reduce((acc, f, i) => !f.forecast ? i : acc, 0) ?? 0
 
   return (
     <section className="mb-6">
@@ -306,40 +304,22 @@ export default function RadarMap({ lat, lon, alerts }) {
                 />
                 {/* Past/Forecast track markers */}
                 <div className="flex items-center mt-1 px-0.5" style={{ gap: 0 }}>
-                  {radarData.frames.map((f, i) => {
-                    const isNow = i === lastPastIdx
-                    const isCurrent = i === currentFrame
-                    return (
-                      <div
-                        key={i}
-                        className="flex-1 flex justify-center"
-                      >
-                        <div
-                          className={`rounded-full transition-all duration-150 ${
-                            isCurrent
-                              ? 'w-2 h-2 bg-accent'
-                              : isNow
-                                ? 'w-1.5 h-1.5 bg-text'
-                                : f.forecast
-                                  ? 'w-1 h-1 bg-accent/40'
-                                  : 'w-1 h-1 bg-text-muted/30'
-                          }`}
-                        />
-                      </div>
-                    )
-                  })}
+                  {radarData.frames.map((_, i) => (
+                    <div key={i} className="flex-1 flex justify-center">
+                      <div className={`rounded-full transition-all duration-150 ${
+                        i === currentFrame ? 'w-2 h-2 bg-accent' :
+                        i === radarData.frames.length - 1 ? 'w-1.5 h-1.5 bg-text' :
+                        'w-1 h-1 bg-text-muted/30'
+                      }`} />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
             <div className="flex flex-col items-end flex-shrink-0 min-w-[5.5rem]">
-              <span className="text-xs text-text-dim leading-tight">
-                {isForecast && <span className="text-accent mr-1">FC</span>}
-                {frameTime}
-              </span>
-              <span className={`text-[10px] leading-tight ${isForecast ? 'text-accent/70' : 'text-text-muted'}`}>
-                {relTime}
-              </span>
+              <span className="text-xs text-text-dim leading-tight">{frameTime}</span>
+              <span className="text-[10px] text-text-muted leading-tight">{relTime}</span>
             </div>
 
             <button onClick={toggleFullscreen}

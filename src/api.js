@@ -92,20 +92,29 @@ function parseAlertPolygon(geometry) {
   } catch { return [] }
 }
 
-// ── RainViewer Radar ──
+// ── NOAA NEXRAD Radar (via Iowa State Mesonet) ──
 
 export async function getRadarFrames() {
-  const data = await fetchJSON('https://api.rainviewer.com/public/weather-maps.json')
-  const past = (data.radar?.past || []).map(f => ({
-    time: f.time,
-    path: f.path,
+  const host = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0'
+
+  // Get actual radar composite timestamp for accurate time labels
+  let currentTime
+  try {
+    const meta = await fetchJSON('https://mesonet.agron.iastate.edu/json/tms.json')
+    const n0q = meta.services?.find(s => s.id === 'ridge_uscomp_n0q')
+    currentTime = n0q ? new Date(n0q.utc_valid) : new Date()
+  } catch {
+    currentTime = new Date()
+  }
+
+  // NEXRAD composite: 12 frames at 5-min intervals (55 minutes of history)
+  const offsets = [55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0]
+  const frames = offsets.map(offset => ({
+    time: Math.floor((currentTime.getTime() - offset * 60000) / 1000),
+    path: offset === 0 ? '/nexrad-n0q-900913' : `/nexrad-n0q-m${String(offset).padStart(2, '0')}m-900913`,
   }))
-  const nowcast = (data.radar?.nowcast || []).slice(0, 3).map(f => ({
-    time: f.time,
-    path: f.path,
-    forecast: true,
-  }))
-  return { host: data.host || 'https://tilecache.rainviewer.com', frames: [...past, ...nowcast] }
+
+  return { host, frames }
 }
 
 // ── NOAA Space Weather ──
@@ -273,6 +282,40 @@ export async function getSPCOutlook() {
       ).flat() || [],
     })).filter(f => f.polygon.length > 0) || []
   } catch { return [] }
+}
+
+// ── NOAA GOES Satellite Imagery ──
+
+export async function getSatelliteFrames(sector = 'UMV', product = 'GEOCOLOR', count = 30) {
+  const isConus = sector === 'CONUS'
+  const basePath = isConus
+    ? `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/CONUS/${product}/`
+    : `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/${sector}/${product}/`
+
+  const resolution = isConus ? '1250x750' : '1200x1200'
+
+  const res = await fetch(basePath)
+  if (!res.ok) throw new Error(`${res.status}`)
+  const html = await res.text()
+
+  // Extract filenames matching target resolution (timestamp is YYYYDDDHHMM = 11 digits)
+  const regex = new RegExp(`href="(\\d{11}_[^"]*?-${resolution}\\.jpg)"`, 'g')
+  const filenames = []
+  let m
+  while ((m = regex.exec(html)) !== null) filenames.push(m[1])
+
+  if (!filenames.length) return []
+
+  return filenames.slice(-count).map(fn => {
+    const ts = fn.match(/^(\d{4})(\d{3})(\d{2})(\d{2})/)
+    if (!ts) return null
+    const [, year, doy, hh, mm] = ts
+    // Convert day-of-year to Date
+    const date = new Date(Date.UTC(parseInt(year), 0, 1))
+    date.setUTCDate(parseInt(doy))
+    date.setUTCHours(parseInt(hh), parseInt(mm), 0, 0)
+    return { url: `${basePath}${fn}`, time: Math.floor(date.getTime() / 1000) }
+  }).filter(Boolean)
 }
 
 // ── Unit conversions ──
