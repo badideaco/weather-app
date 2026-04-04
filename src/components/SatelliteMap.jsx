@@ -18,10 +18,10 @@ function GIBSOverlay({ layerId, ext }) {
     if (!map || !layerId) return
     if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null }
 
-    const today = new Date().toISOString().split('T')[0]
-    // Cache-bust every 10 minutes so tiles refresh with latest GOES imagery
+    // Omit date to get GIBS "latest available" GOES imagery
+    // Cache-bust every 10 min so browser fetches fresh tiles
     const cacheBust = Math.floor(Date.now() / 600000)
-    const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layerId}/default/${today}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.${ext}?_=${cacheBust}`
+    const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layerId}/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.${ext}?_=${cacheBust}`
     layerRef.current = L.tileLayer(url, { opacity: 0.7, zIndex: 10, maxZoom: 6 })
     layerRef.current.addTo(map)
 
