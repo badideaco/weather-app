@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0a1a;
+  --color-surface: #111128;
+  --color-surface-light: #1a1a3e;
+  --color-border: #2a2a4a;
+  --color-accent: #4fc3f7;
+  --color-accent-warm: #ff9800;
+  --color-danger: #ef5350;
+  --color-text: #e8e8ec;
+  --color-text-dim: #8888a8;
+  --color-text-muted: #555570;
+}
+
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+/* Leaflet overrides for dark theme */
+.leaflet-container {
+  background: #0a0a1a !important;
+}
+.leaflet-control-zoom a {
+  background: #1a1a3e !important;
+  color: #e8e8ec !important;
+  border-color: #2a2a4a !important;
+}
+.leaflet-control-attribution {
+  background: rgba(10,10,26,0.8) !important;
+  color: #555570 !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a {
+  color: #4fc3f7 !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+
+/* Horizontal scroll containers */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a4a transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Pulse animation for loading */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+.skeleton {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-light) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Radar animation opacity */
+.radar-frame {
+  transition: opacity 0.3s ease;
+}
+
+/* Safe area padding for PWA */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}

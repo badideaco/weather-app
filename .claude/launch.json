@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "/opt/homebrew/bin/npx",
+      "runtimeArgs": ["vite", "--host"],
+      "port": 5173
+    }
+  ]
+}
