@@ -22,6 +22,8 @@ import ForecastCharts from './components/ForecastCharts'
 import SPCOutlook from './components/SPCOutlook'
 import ExtendedForecast from './components/ExtendedForecast'
 import SatelliteMap from './components/SatelliteMap'
+import EarthView from './components/EarthView'
+import AuroraForecast from './components/AuroraForecast'
 import PollenForecast from './components/PollenForecast'
 
 const STORAGE_KEY = 'stormscope-location'
@@ -421,6 +423,8 @@ export default function App() {
 
         {location && <RevealSection><SatelliteMap lat={location.lat} lon={location.lon} /></RevealSection>}
 
+        <RevealSection><EarthView /></RevealSection>
+
         {location && <RevealSection><SPCOutlook lat={location.lat} lon={location.lon} /></RevealSection>}
 
         {location && <RevealSection><AirQuality lat={location.lat} lon={location.lon} /></RevealSection>}
@@ -429,6 +433,8 @@ export default function App() {
 
         <RevealSection><SpaceWeather /></RevealSection>
 
+        <RevealSection><AuroraForecast /></RevealSection>
+
         {location && <RevealSection><Astronomy lat={location.lat} lon={location.lon} /></RevealSection>}
 
         {location && <RevealSection><WeatherHistory lat={location.lat} lon={location.lon} /></RevealSection>}
@@ -436,7 +442,7 @@ export default function App() {
         {location && <RevealSection><FlightTracker lat={location.lat} lon={location.lon} /></RevealSection>}
 
         <footer className="mt-8 pt-4 border-t border-white/[0.04] text-center text-text-muted text-xs">
-          <p>Data from NWS, NOAA SWPC, RainViewer, OpenSky Network, NASA</p>
+          <p>Data from NWS, NOAA, Iowa State Mesonet, EUMETSAT, NASA EPIC, NASA GIBS</p>
           <p className="mt-1 text-text-muted/60">StormScope Weather</p>
         </footer>
       </main>

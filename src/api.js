@@ -287,12 +287,23 @@ export async function getSPCOutlook() {
 // ── NOAA GOES Satellite Imagery ──
 
 export async function getSatelliteFrames(sector = 'UMV', product = 'GEOCOLOR', count = 30) {
-  const isConus = sector === 'CONUS'
-  const basePath = isConus
-    ? `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/CONUS/${product}/`
-    : `https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/${sector}/${product}/`
+  // Determine satellite, URL path, and resolution based on sector type
+  let sat = 'GOES19', basePath, resolution
 
-  const resolution = isConus ? '1250x750' : '1200x1200'
+  if (sector === 'FD-WEST') {
+    sat = 'GOES18'
+    basePath = `https://cdn.star.nesdis.noaa.gov/${sat}/ABI/FD/${product}/`
+    resolution = '678x678'
+  } else if (sector === 'FD') {
+    basePath = `https://cdn.star.nesdis.noaa.gov/${sat}/ABI/FD/${product}/`
+    resolution = '678x678'
+  } else if (sector === 'CONUS') {
+    basePath = `https://cdn.star.nesdis.noaa.gov/${sat}/ABI/CONUS/${product}/`
+    resolution = '1250x750'
+  } else {
+    basePath = `https://cdn.star.nesdis.noaa.gov/${sat}/ABI/SECTOR/${sector}/${product}/`
+    resolution = '1200x1200'
+  }
 
   const res = await fetch(basePath)
   if (!res.ok) throw new Error(`${res.status}`)
@@ -316,6 +327,37 @@ export async function getSatelliteFrames(sector = 'UMV', product = 'GEOCOLOR', c
     date.setUTCHours(parseInt(hh), parseInt(mm), 0, 0)
     return { url: `${basePath}${fn}`, time: Math.floor(date.getTime() / 1000) }
   }).filter(Boolean)
+}
+
+// ── NASA EPIC (DSCOVR at L1 — whole sunlit Earth) ──
+
+export async function getEPICImages(type = 'enhanced') {
+  const data = await fetchJSON(`https://epic.gsfc.nasa.gov/api/${type}`)
+  if (!data?.length) return []
+  return data.map(img => {
+    const [date] = img.date.split(' ')
+    const [year, month, day] = date.split('-')
+    return {
+      url: `https://epic.gsfc.nasa.gov/archive/${type}/${year}/${month}/${day}/jpg/${img.image}.jpg`,
+      time: Math.floor(new Date(img.date.replace(' ', 'T') + 'Z').getTime() / 1000),
+      caption: img.caption,
+      lat: img.centroid_coordinates?.lat,
+      lon: img.centroid_coordinates?.lon,
+    }
+  })
+}
+
+// ── NOAA Aurora Forecast ──
+
+export async function getAuroraFrames(hemisphere = 'north') {
+  const data = await fetchJSON(
+    `https://services.swpc.noaa.gov/products/animations/ovation_${hemisphere}_24h.json`
+  )
+  if (!Array.isArray(data)) return []
+  return data.map(f => ({
+    url: f.url?.startsWith('http') ? f.url : `https://services.swpc.noaa.gov${f.url}`,
+    time: f.time_tag ? Math.floor(new Date(f.time_tag).getTime() / 1000) : 0,
+  })).filter(f => f.url && f.time)
 }
 
 // ── Unit conversions ──
