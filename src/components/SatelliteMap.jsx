@@ -3,41 +3,38 @@ import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-// RainViewer provides satellite infrared tiles with proper CORS
-function SatelliteOverlay({ host, path }) {
+// NASA GIBS satellite layers — reliable WMTS with CORS
+const GIBS_LAYERS = [
+  { id: 'geocolor', label: 'GeoColor', layer: 'GOES-East_ABI_GeoColor', ext: 'jpg' },
+  { id: 'infrared', label: 'Infrared', layer: 'GOES-East_ABI_Band13_Clean_Infrared', ext: 'png' },
+  { id: 'water', label: 'Water Vapor', layer: 'GOES-East_ABI_Band08_Upper_Level_Water_Vapor', ext: 'png' },
+]
+
+function GIBSOverlay({ layerId, ext }) {
   const map = useMap()
   const layerRef = useRef(null)
 
   useEffect(() => {
-    if (!host || !path || !map) return
+    if (!map || !layerId) return
     if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null }
-    const url = `${host}${path}/512/{z}/{x}/{y}/0/0_0.png`
-    layerRef.current = L.tileLayer(url, { opacity: 0.7, zIndex: 10, tileSize: 512, zoomOffset: -1 })
+
+    const today = new Date().toISOString().split('T')[0]
+    const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layerId}/default/${today}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.${ext}`
+    layerRef.current = L.tileLayer(url, { opacity: 0.7, zIndex: 10, maxZoom: 6 })
     layerRef.current.addTo(map)
+
     return () => { if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null } }
-  }, [map, host, path])
+  }, [map, layerId, ext])
 
   return null
 }
 
 export default function SatelliteMap({ lat, lon }) {
-  const [satData, setSatData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [activeLayer, setActiveLayer] = useState('infrared')
   const [fullscreen, setFullscreen] = useState(false)
   const containerRef = useRef(null)
 
-  useEffect(() => {
-    fetch('https://api.rainviewer.com/public/weather-maps.json')
-      .then(r => r.json())
-      .then(data => {
-        const frames = data.satellite?.infrared || []
-        if (frames.length) {
-          setSatData({ host: data.host || 'https://tilecache.rainviewer.com', path: frames[frames.length - 1].path })
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+  const currentLayer = GIBS_LAYERS.find(l => l.id === activeLayer)
 
   const toggleFullscreen = useCallback(() => {
     if (!fullscreen) {
@@ -65,29 +62,33 @@ export default function SatelliteMap({ lat, lon }) {
         className={`glass-card overflow-hidden ${fullscreen ? 'fixed inset-0 z-[9999] rounded-none' : ''}`}
       >
         <div className={fullscreen ? 'h-[calc(100%-48px)]' : 'h-[300px]'}>
-          {loading ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <MapContainer
-              center={[lat, lon]}
-              zoom={6}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={false}
-              attributionControl={false}
-            >
-              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" subdomains="abcd" />
-              {satData && <SatelliteOverlay host={satData.host} path={satData.path} />}
-              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" subdomains="abcd" zIndex={20} />
-              <CircleMarker center={[lat, lon]} radius={5} pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.9, weight: 2 }} />
-            </MapContainer>
-          )}
+          <MapContainer
+            center={[lat, lon]}
+            zoom={5}
+            maxZoom={6}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={false}
+            attributionControl={false}
+          >
+            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" subdomains="abcd" />
+            <GIBSOverlay layerId={currentLayer.layer} ext={currentLayer.ext} />
+            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" subdomains="abcd" zIndex={20} />
+            <CircleMarker center={[lat, lon]} radius={5} pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.9, weight: 2 }} />
+          </MapContainer>
         </div>
 
         {/* Controls */}
         <div className="px-4 py-2.5 flex items-center justify-between bg-bg/60">
-          <span className="text-text-muted text-xs">Infrared</span>
+          <div className="flex gap-1">
+            {GIBS_LAYERS.map(l => (
+              <button key={l.id}
+                onClick={() => setActiveLayer(l.id)}
+                className={`px-3 py-1 rounded-lg text-xs transition-colors ${
+                  activeLayer === l.id ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-surface'
+                }`}
+              >{l.label}</button>
+            ))}
+          </div>
           <button
             onClick={toggleFullscreen}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface text-text-muted hover:text-text transition-colors"
