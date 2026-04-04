@@ -64,6 +64,7 @@ export default function SPCOutlook({ lat, lon }) {
           <MapContainer
             center={[39, -96]}
             zoom={5}
+            minZoom={3}
             maxZoom={10}
             bounceAtZoomLimits={false}
             style={{ height: '100%', width: '100%' }}

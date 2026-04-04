@@ -73,6 +73,7 @@ export default function SatelliteMap({ lat, lon }) {
           <MapContainer
             center={[lat, lon]}
             zoom={5}
+            minZoom={3}
             maxZoom={6}
             bounceAtZoomLimits={false}
             style={{ height: '100%', width: '100%' }}

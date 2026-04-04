@@ -5,59 +5,39 @@ import { getRadarFrames } from '../api'
 import { formatTime, TZ } from '../timezone'
 import 'leaflet/dist/leaflet.css'
 
-// ── Radar tile overlay (pre-loads ALL frames, toggles opacity) ──
+// ── Radar tile overlay (single layer, swaps URL per frame) ──
+// Only ONE tile layer exists at a time to prevent Safari PWA memory crash.
+// Pre-loading all frames (15 layers × tiles) causes OOM on zoom out.
 function RadarOverlay({ frames, host, currentFrame }) {
   const map = useMap()
-  const layersRef = useRef([])
-  const prevFrameRef = useRef(-1)
+  const layerRef = useRef(null)
+  const prevUrlRef = useRef('')
 
-  // Create all tile layers once when frame data changes
   useEffect(() => {
     if (!frames?.length || !map) return
+    const frame = frames[currentFrame]
+    if (!frame) return
 
-    // Remove old layers
-    layersRef.current.forEach(l => {
-      if (l && map.hasLayer(l)) map.removeLayer(l)
-    })
+    const url = `${host}${frame.path}/512/{z}/{x}/{y}/6/1_1.png`
+    if (url === prevUrlRef.current) return
+    prevUrlRef.current = url
 
-    // Pre-create every frame layer with opacity 0
-    const layers = frames.map((frame, i) => {
-      const url = `${host}${frame.path}/512/{z}/{x}/{y}/6/1_1.png`
-      const layer = L.tileLayer(url, {
-        opacity: i === currentFrame ? 0.65 : 0,
+    if (layerRef.current) {
+      layerRef.current.setUrl(url)
+    } else {
+      layerRef.current = L.tileLayer(url, {
+        opacity: 0.65,
         zIndex: 10,
         tileSize: 512,
         zoomOffset: -1,
       })
-      layer.addTo(map)
-      return layer
-    })
-
-    layersRef.current = layers
-    prevFrameRef.current = currentFrame
+      layerRef.current.addTo(map)
+    }
 
     return () => {
-      layers.forEach(l => {
-        if (l && map.hasLayer(l)) map.removeLayer(l)
-      })
-      layersRef.current = []
+      if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null; prevUrlRef.current = '' }
     }
-  }, [map, frames, host]) // eslint-disable-line
-
-  // Toggle frame visibility (instant swap — no tile reload)
-  useEffect(() => {
-    const layers = layersRef.current
-    if (!layers.length) return
-
-    const prev = prevFrameRef.current
-    if (prev >= 0 && prev < layers.length && layers[prev]) {
-      layers[prev].setOpacity(0)
-    }
-    if (currentFrame >= 0 && currentFrame < layers.length && layers[currentFrame]) {
-      layers[currentFrame].setOpacity(0.65)
-    }
-    prevFrameRef.current = currentFrame
-  }, [currentFrame])
+  }, [map, frames, host, currentFrame])
 
   return null
 }
@@ -286,6 +266,7 @@ export default function RadarMap({ lat, lon, alerts }) {
             <MapContainer
               center={[lat, lon]}
               zoom={8}
+              minZoom={5}
               maxZoom={12}
               bounceAtZoomLimits={false}
               style={{ height: '100%', width: '100%' }}
