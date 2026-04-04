@@ -357,7 +357,7 @@ export default function App() {
 
         {weather && <DailyForecast periods={weather} />}
 
-        {location && <RadarMap lat={location.lat} lon={location.lon} />}
+        {location && <RadarMap lat={location.lat} lon={location.lon} alerts={alerts} />}
 
         <SpaceWeather />
 

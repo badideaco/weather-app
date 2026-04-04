@@ -78,7 +78,18 @@ export async function getAlerts(lat, lon) {
     instruction: f.properties.instruction,
     expires: f.properties.expires,
     senderName: f.properties.senderName,
+    polygon: parseAlertPolygon(f.geometry),
   }))
+}
+
+function parseAlertPolygon(geometry) {
+  if (!geometry?.coordinates) return []
+  try {
+    // GeoJSON coordinates are [lon, lat], Leaflet needs [lat, lon]
+    const coords = geometry.type === 'Polygon' ? geometry.coordinates[0] :
+                   geometry.type === 'MultiPolygon' ? geometry.coordinates[0][0] : []
+    return coords.map(c => [c[1], c[0]])
+  } catch { return [] }
 }
 
 // ── RainViewer Radar ──
