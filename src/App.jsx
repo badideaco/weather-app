@@ -13,6 +13,7 @@ import WindRose from './components/WindRose'
 import UVTimer from './components/UVTimer'
 import ClothingRec from './components/ClothingRec'
 import WeatherBriefing from './components/WeatherBriefing'
+import LocationManager from './components/LocationManager'
 
 const STORAGE_KEY = 'stormscope-location'
 const NOTIF_KEY = 'stormscope-notif'
@@ -173,6 +174,13 @@ export default function App() {
     requestLocation()
   }
 
+  const handleSelectLocation = (loc) => {
+    setLocation(loc)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ lat: loc.lat, lon: loc.lon }))
+    localStorage.removeItem('stormscope-briefing') // Clear cached briefing for new location
+    fetchWeather(loc.lat, loc.lon)
+  }
+
   // Toggle notifications
   const toggleNotifications = async () => {
     if (notifEnabled) {
@@ -287,14 +295,12 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50 px-4 py-3 relative">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-accent flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
-            </svg>
-            <button onClick={handleRelocate} className="text-text font-semibold truncate text-left">
-              {locationName || 'Loading...'}
-            </button>
-          </div>
+          <LocationManager
+            currentLocation={location}
+            locationName={locationName}
+            onSelect={handleSelectLocation}
+            onRelocate={handleRelocate}
+          />
           <div className="flex items-center gap-2">
             {lastUpdated && (
               <span className="text-text-muted text-xs hidden sm:block">
