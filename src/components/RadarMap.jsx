@@ -286,6 +286,8 @@ export default function RadarMap({ lat, lon, alerts }) {
             <MapContainer
               center={[lat, lon]}
               zoom={8}
+              maxZoom={12}
+              bounceAtZoomLimits={false}
               style={{ height: '100%', width: '100%' }}
               zoomControl={false}
               attributionControl={false}

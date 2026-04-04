@@ -115,6 +115,8 @@ export default function FlightTracker({ lat, lon }) {
             <MapContainer
               center={[lat, lon]}
               zoom={9}
+              maxZoom={13}
+              bounceAtZoomLimits={false}
               style={{ height: '100%', width: '100%' }}
               zoomControl={false}
               attributionControl={false}

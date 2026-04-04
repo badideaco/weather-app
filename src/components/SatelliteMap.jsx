@@ -66,6 +66,7 @@ export default function SatelliteMap({ lat, lon }) {
             center={[lat, lon]}
             zoom={5}
             maxZoom={6}
+            bounceAtZoomLimits={false}
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
             attributionControl={false}

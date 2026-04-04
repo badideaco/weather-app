@@ -26,6 +26,11 @@ body {
   background: var(--color-bg);
 }
 
+/* Prevent Safari PWA crash on pinch-to-zoom past map limits */
+.leaflet-container {
+  touch-action: pan-x pan-y !important;
+}
+
 /* ─── Premium Glass Card System ─── */
 .glass-card {
   background: rgba(17, 17, 40, 0.5);
