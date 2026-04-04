@@ -231,7 +231,7 @@ export default function SatelliteMap({ lat, lon }) {
                   onChange={e => { setFrameIdx(parseInt(e.target.value)); setPlaying(false); dwellRef.current = 0 }}
                   className="w-full accent-accent h-1 relative z-10"
                 />
-                <div className="flex items-center mt-1 px-0.5">
+                <div className="flex items-center mt-1 px-0.5 h-2">
                   {frames.map((_, i) => (
                     <div key={i} className="flex-1 flex justify-center">
                       <div className={`rounded-full transition-all duration-150 ${

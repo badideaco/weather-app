@@ -303,7 +303,7 @@ export default function RadarMap({ lat, lon, alerts }) {
                   className="w-full accent-accent h-1 relative z-10"
                 />
                 {/* Past/Forecast track markers */}
-                <div className="flex items-center mt-1 px-0.5" style={{ gap: 0 }}>
+                <div className="flex items-center mt-1 px-0.5 h-2" style={{ gap: 0 }}>
                   {radarData.frames.map((_, i) => (
                     <div key={i} className="flex-1 flex justify-center">
                       <div className={`rounded-full transition-all duration-150 ${

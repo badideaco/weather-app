@@ -192,7 +192,7 @@ export default function EarthView() {
                   className="w-full accent-accent h-1 relative z-10"
                 />
                 {frames.length <= 30 && (
-                  <div className="flex items-center mt-1 px-0.5">
+                  <div className="flex items-center mt-1 px-0.5 h-2">
                     {frames.map((_, i) => (
                       <div key={i} className="flex-1 flex justify-center">
                         <div className={`rounded-full transition-all duration-150 ${
