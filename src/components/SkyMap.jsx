@@ -301,8 +301,15 @@ export default function SkyMap({ lat, lon, onClose }) {
     const handler = (e) => {
       if (e.alpha == null) return
       const s = stateRef.current
-      s.lookAz = (360 - e.alpha + 360) % 360
-      s.lookAlt = Math.max(-10, Math.min(90, e.beta || 45))
+      // iOS provides webkitCompassHeading (true compass bearing, 0=N, 90=E clockwise)
+      // Standard alpha is counterclockwise from arbitrary reference — unreliable for compass
+      const heading = e.webkitCompassHeading != null
+        ? e.webkitCompassHeading
+        : (360 - e.alpha + 360) % 360
+      s.lookAz = heading
+      // beta: 0=flat, 90=upright. Map to sky altitude (phone upright = looking at horizon)
+      const beta = e.beta ?? 45
+      s.lookAlt = Math.max(-10, Math.min(90, beta))
       s.needsRecalc = true
       setCompassAz(Math.round(s.lookAz))
     }
@@ -488,7 +495,8 @@ export default function SkyMap({ lat, lon, onClose }) {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-    const dpr = window.devicePixelRatio || 1
+    // Cap DPR at 2 to prevent canvas memory crash on high-DPR iOS PWAs (3x retina)
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
 
     const resize = () => {
       canvas.width = window.innerWidth * dpr

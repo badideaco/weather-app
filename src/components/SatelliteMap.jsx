@@ -18,22 +18,12 @@ function GIBSOverlay({ layerId, ext }) {
     if (!map || !layerId) return
     if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null }
 
-    // GIBS imagery has ~3hr delay; try today first, fall back to yesterday
-    const now = new Date()
-    const dates = [
-      now.toISOString().split('T')[0],
-      new Date(now - 86400000).toISOString().split('T')[0],
-    ]
-
-    function tryDate(i) {
-      if (i >= dates.length || !map) return
-      const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layerId}/default/${dates[i]}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.${ext}`
-      const layer = L.tileLayer(url, { opacity: 0.7, zIndex: 10, maxZoom: 6 })
-      layer.once('tileerror', () => { map.removeLayer(layer); tryDate(i + 1) })
-      layer.addTo(map)
-      layerRef.current = layer
-    }
-    tryDate(0)
+    const today = new Date().toISOString().split('T')[0]
+    // Cache-bust every 10 minutes so tiles refresh with latest GOES imagery
+    const cacheBust = Math.floor(Date.now() / 600000)
+    const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layerId}/default/${today}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.${ext}?_=${cacheBust}`
+    layerRef.current = L.tileLayer(url, { opacity: 0.7, zIndex: 10, maxZoom: 6 })
+    layerRef.current.addTo(map)
 
     return () => { if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null } }
   }, [map, layerId, ext])
@@ -44,7 +34,14 @@ function GIBSOverlay({ layerId, ext }) {
 export default function SatelliteMap({ lat, lon }) {
   const [activeLayer, setActiveLayer] = useState('infrared')
   const [fullscreen, setFullscreen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const containerRef = useRef(null)
+
+  // Auto-refresh tiles every 10 minutes
+  useEffect(() => {
+    const timer = setInterval(() => setRefreshKey(k => k + 1), 10 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   const currentLayer = GIBS_LAYERS.find(l => l.id === activeLayer)
 
@@ -84,7 +81,7 @@ export default function SatelliteMap({ lat, lon }) {
             attributionControl={false}
           >
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" subdomains="abcd" />
-            <GIBSOverlay layerId={currentLayer.layer} ext={currentLayer.ext} />
+            <GIBSOverlay key={refreshKey} layerId={currentLayer.layer} ext={currentLayer.ext} />
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" subdomains="abcd" zIndex={20} />
             <CircleMarker center={[lat, lon]} radius={5} pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.9, weight: 2 }} />
           </MapContainer>
