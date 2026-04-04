@@ -14,6 +14,8 @@ import UVTimer from './components/UVTimer'
 import ClothingRec from './components/ClothingRec'
 import WeatherBriefing from './components/WeatherBriefing'
 import LocationManager from './components/LocationManager'
+import AirQuality from './components/AirQuality'
+import WeatherHistory from './components/WeatherHistory'
 
 const STORAGE_KEY = 'stormscope-location'
 const NOTIF_KEY = 'stormscope-notif'
@@ -368,9 +370,13 @@ export default function App() {
 
         {location && <RadarMap lat={location.lat} lon={location.lon} alerts={alerts} />}
 
+        {location && <AirQuality lat={location.lat} lon={location.lon} />}
+
         <SpaceWeather />
 
         {location && <Astronomy lat={location.lat} lon={location.lon} />}
+
+        {location && <WeatherHistory lat={location.lat} lon={location.lon} />}
 
         {location && <FlightTracker lat={location.lat} lon={location.lon} />}
 
