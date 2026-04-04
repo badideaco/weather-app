@@ -375,3 +375,71 @@ export const MILKY_WAY_POINTS = [
   { ra: 6.0, dec: 10 }, { ra: 6.5, dec: 0 }, { ra: 7.0, dec: -15 },
   { ra: 7.5, dec: -25 }, { ra: 8.0, dec: -35 },
 ]
+
+// ── Enhanced Milky Way Band (with width and brightness) ──
+export const MILKY_WAY_BAND = [
+  { ra: 18.0, dec: -33, width: 30, brightness: 1.0 },
+  { ra: 18.5, dec: -28, width: 28, brightness: 0.9 },
+  { ra: 19.0, dec: -20, width: 22, brightness: 0.7 },
+  { ra: 19.5, dec: -10, width: 18, brightness: 0.5 },
+  { ra: 20.0, dec: 0, width: 15, brightness: 0.45 },
+  { ra: 20.5, dec: 15, width: 18, brightness: 0.5 },
+  { ra: 21.0, dec: 30, width: 15, brightness: 0.4 },
+  { ra: 21.5, dec: 45, width: 12, brightness: 0.35 },
+  { ra: 22.0, dec: 55, width: 10, brightness: 0.3 },
+  { ra: 23.0, dec: 60, width: 10, brightness: 0.3 },
+  { ra: 0.0, dec: 58, width: 10, brightness: 0.25 },
+  { ra: 1.0, dec: 55, width: 8, brightness: 0.2 },
+  { ra: 2.0, dec: 50, width: 8, brightness: 0.2 },
+  { ra: 3.0, dec: 40, width: 10, brightness: 0.25 },
+  { ra: 4.0, dec: 30, width: 10, brightness: 0.3 },
+  { ra: 5.0, dec: 20, width: 12, brightness: 0.35 },
+  { ra: 5.5, dec: 10, width: 15, brightness: 0.4 },
+  { ra: 6.0, dec: 5, width: 15, brightness: 0.4 },
+  { ra: 6.5, dec: 0, width: 15, brightness: 0.45 },
+  { ra: 7.0, dec: -15, width: 18, brightness: 0.5 },
+  { ra: 7.5, dec: -25, width: 20, brightness: 0.55 },
+  { ra: 8.0, dec: -35, width: 22, brightness: 0.6 },
+  { ra: 10.0, dec: -50, width: 18, brightness: 0.45 },
+  { ra: 12.0, dec: -60, width: 15, brightness: 0.4 },
+  { ra: 14.0, dec: -55, width: 18, brightness: 0.5 },
+  { ra: 16.0, dec: -40, width: 25, brightness: 0.7 },
+  { ra: 17.0, dec: -35, width: 28, brightness: 0.85 },
+]
+
+// ── Deep Sky Objects (Messier + notable NGC) ──
+export const DEEP_SKY_OBJECTS = [
+  { id: 'M31', name: 'Andromeda Galaxy', ra: 0.712, dec: 41.27, mag: 3.4, type: 'Galaxy', size: 3.0, con: 'And' },
+  { id: 'M42', name: 'Orion Nebula', ra: 5.588, dec: -5.39, mag: 4.0, type: 'Nebula', size: 1.5, con: 'Ori' },
+  { id: 'M45', name: 'Pleiades', ra: 3.787, dec: 24.12, mag: 1.6, type: 'Cluster', size: 2.0, con: 'Tau' },
+  { id: 'M13', name: 'Hercules Cluster', ra: 16.695, dec: 36.46, mag: 5.8, type: 'Cluster', size: 0.5, con: 'Her' },
+  { id: 'M1', name: 'Crab Nebula', ra: 5.576, dec: 22.01, mag: 8.4, type: 'Remnant', size: 0.3, con: 'Tau' },
+  { id: 'M51', name: 'Whirlpool Galaxy', ra: 13.500, dec: 47.20, mag: 8.4, type: 'Galaxy', size: 0.4, con: 'CVn' },
+  { id: 'M81', name: "Bode's Galaxy", ra: 9.926, dec: 69.07, mag: 6.9, type: 'Galaxy', size: 0.5, con: 'UMa' },
+  { id: 'M44', name: 'Beehive Cluster', ra: 8.667, dec: 19.67, mag: 3.7, type: 'Cluster', size: 1.5, con: 'Cnc' },
+  { id: 'M8', name: 'Lagoon Nebula', ra: 18.063, dec: -24.38, mag: 6.0, type: 'Nebula', size: 0.8, con: 'Sgr' },
+  { id: 'M20', name: 'Trifid Nebula', ra: 18.044, dec: -23.03, mag: 6.3, type: 'Nebula', size: 0.5, con: 'Sgr' },
+  { id: 'M17', name: 'Omega Nebula', ra: 18.346, dec: -16.18, mag: 6.0, type: 'Nebula', size: 0.6, con: 'Sgr' },
+  { id: 'M57', name: 'Ring Nebula', ra: 18.893, dec: 33.03, mag: 8.8, type: 'Nebula', size: 0.2, con: 'Lyr' },
+  { id: 'M27', name: 'Dumbbell Nebula', ra: 19.994, dec: 22.72, mag: 7.5, type: 'Nebula', size: 0.4, con: 'Vul' },
+  { id: 'M33', name: 'Triangulum Galaxy', ra: 1.564, dec: 30.66, mag: 5.7, type: 'Galaxy', size: 1.0, con: 'Tri' },
+  { id: 'M22', name: 'Sagittarius Cluster', ra: 18.607, dec: -23.90, mag: 5.1, type: 'Cluster', size: 0.5, con: 'Sgr' },
+  { id: 'M7', name: "Ptolemy's Cluster", ra: 17.898, dec: -34.79, mag: 3.3, type: 'Cluster', size: 1.3, con: 'Sco' },
+  { id: 'M6', name: 'Butterfly Cluster', ra: 17.668, dec: -32.25, mag: 4.2, type: 'Cluster', size: 0.8, con: 'Sco' },
+  { id: 'M35', name: 'Shoe-Buckle Cluster', ra: 6.149, dec: 24.33, mag: 5.3, type: 'Cluster', size: 0.5, con: 'Gem' },
+  { id: 'M41', name: 'Little Beehive', ra: 6.783, dec: -20.72, mag: 4.5, type: 'Cluster', size: 0.6, con: 'CMa' },
+  { id: 'NGC869', name: 'Double Cluster', ra: 2.327, dec: 57.13, mag: 3.7, type: 'Cluster', size: 1.0, con: 'Per' },
+]
+
+// ── Meteor Shower Radiants (RA in hours, Dec in degrees) ──
+export const METEOR_RADIANTS = [
+  { name: 'Quadrantids', peak: '01-03', rate: 120, ra: 15.33, dec: 49.7 },
+  { name: 'Lyrids', peak: '04-22', rate: 18, ra: 18.07, dec: 33.3 },
+  { name: 'Eta Aquariids', peak: '05-06', rate: 50, ra: 22.33, dec: -1.0 },
+  { name: 'Delta Aquariids', peak: '07-29', rate: 20, ra: 22.67, dec: -16.3 },
+  { name: 'Perseids', peak: '08-12', rate: 100, ra: 3.07, dec: 58.0 },
+  { name: 'Orionids', peak: '10-21', rate: 20, ra: 6.33, dec: 15.5 },
+  { name: 'Leonids', peak: '11-17', rate: 15, ra: 10.15, dec: 22.2 },
+  { name: 'Geminids', peak: '12-14', rate: 150, ra: 7.47, dec: 32.5 },
+  { name: 'Ursids', peak: '12-22', rate: 10, ra: 14.47, dec: 75.8 },
+]
