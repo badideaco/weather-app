@@ -12,6 +12,7 @@ import WeatherAmbient from './components/WeatherAmbient'
 import WindRose from './components/WindRose'
 import UVTimer from './components/UVTimer'
 import ClothingRec from './components/ClothingRec'
+import WeatherBriefing from './components/WeatherBriefing'
 
 const STORAGE_KEY = 'stormscope-location'
 const NOTIF_KEY = 'stormscope-notif'
@@ -331,6 +332,8 @@ export default function App() {
         )}
 
         {alerts && alerts.length > 0 && <WeatherAlerts alerts={alerts} />}
+
+        <WeatherBriefing observation={observation} forecast={weather} hourly={hourly} alerts={alerts} locationName={locationName} />
 
         {(observation || currentPeriod) && (
           <CurrentWeather observation={observation} period={currentPeriod} forecast={weather} />
