@@ -67,7 +67,7 @@ export default function WeatherHistory({ lat, lon }) {
 
   if (loading) return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">This Day in History</h2>
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">This Day in History</h2>
       <div className="skeleton h-28 rounded-2xl" />
     </section>
   )
@@ -76,8 +76,8 @@ export default function WeatherHistory({ lat, lon }) {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">This Day in History</h2>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 divide-y divide-border/30">
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">This Day in History</h2>
+      <div className="glass-card divide-premium">
         {history.map(h => (
           <div key={h.date} className="flex items-center gap-3 px-4 py-3">
             <span className="text-lg w-8 text-center">{wmoEmoji(h.code)}</span>

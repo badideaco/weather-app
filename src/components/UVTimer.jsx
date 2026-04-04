@@ -52,9 +52,9 @@ export default function UVTimer({ uvIndex }) {
   const color = uvColor(uv)
 
   return (
-    <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
+    <div className="glass-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-text-dim text-xs font-semibold uppercase tracking-wider">UV Index</h3>
+        <h3 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">UV Index</h3>
         <button
           onClick={() => setShowPicker(!showPicker)}
           className="text-text-muted text-[10px] hover:text-text-dim transition-colors"
@@ -81,10 +81,16 @@ export default function UVTimer({ uvIndex }) {
         {/* UV gauge */}
         <div className="relative w-16 h-16 flex-shrink-0">
           <svg viewBox="0 0 80 80" className="w-full h-full">
-            <circle cx="40" cy="40" r="32" fill="none" stroke="#2a2a4a" strokeWidth="6" />
+            <defs>
+              <filter id="uvGlow">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
             <circle
               cx="40" cy="40" r="32" fill="none"
-              stroke={color} strokeWidth="6" strokeLinecap="round"
+              stroke={color} strokeWidth="6" strokeLinecap="round" filter="url(#uvGlow)"
               strokeDasharray={`${(Math.min(uv, 11) / 11) * 201} 201`}
               transform="rotate(-90 40 40)"
             />

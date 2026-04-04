@@ -44,11 +44,11 @@ export default function MinutelyPrecip({ lat, lon }) {
 
   return (
     <section className="mb-6">
-      <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
+      <div className="glass-card p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">{"🌧️"}</span>
-            <h3 className="text-text-dim text-xs font-semibold uppercase tracking-wider">Next Hour Precipitation</h3>
+            <h3 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">Next Hour Precipitation</h3>
           </div>
           {statusMsg && <span className={`text-xs font-medium ${statusColor}`}>{statusMsg}</span>}
         </div>

@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import SunCalc from 'suncalc'
 import * as AstroEngine from 'astronomy-engine'
 import { getAPOD } from '../api'
+import SkyMap from './SkyMap'
 
 function formatTime(date) {
   if (!date || isNaN(date.getTime())) return '--'
@@ -157,6 +159,7 @@ export default function Astronomy({ lat, lon }) {
   const [showApod, setShowApod] = useState(false)
   const [showPlanets, setShowPlanets] = useState(false)
   const [showShowers, setShowShowers] = useState(false)
+  const [showSkyMap, setShowSkyMap] = useState(false)
 
   const sunMoon = useMemo(() => {
     const now = new Date()
@@ -192,8 +195,28 @@ export default function Astronomy({ lat, lon }) {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Astronomy</h2>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 p-4 space-y-4">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">Astronomy</h2>
+        <button
+          onClick={() => setShowSkyMap(true)}
+          className="flex items-center gap-1.5 text-accent text-xs font-medium hover:bg-accent/10 px-2.5 py-1.5 rounded-lg transition-colors"
+        >
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="7" cy="5" r="1" /><circle cx="18" cy="7" r="1" /><circle cx="5" cy="18" r="1" />
+            <circle cx="19" cy="16" r="0.8" /><circle cx="14" cy="19" r="0.8" />
+            <path d="M7 5l5 7M12 12l6-5M12 12l-7 6M12 12l7 4" strokeOpacity="0.3" strokeWidth="1" />
+          </svg>
+          Sky Map
+        </button>
+      </div>
+
+      {showSkyMap && createPortal(
+        <SkyMap lat={lat} lon={lon} onClose={() => setShowSkyMap(false)} />,
+        document.body
+      )}
+
+      <div className="glass-card p-4 space-y-4">
         {/* Sun Arc */}
         <div>
           <div className="flex items-center justify-between mb-2">

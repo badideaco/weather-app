@@ -67,8 +67,8 @@ export default function ClothingRec({ temp, wind, humidity, conditions, uvIndex 
   if (!recs.length) return null
 
   return (
-    <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
-      <h3 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3">What to Wear</h3>
+    <div className="glass-card p-4">
+      <h3 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3">What to Wear</h3>
       <div className="space-y-2">
         {recs.map((rec, i) => (
           <div key={i} className="flex items-center gap-3">

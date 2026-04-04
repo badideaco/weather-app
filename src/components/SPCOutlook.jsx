@@ -33,7 +33,7 @@ export default function SPCOutlook({ lat, lon }) {
 
   if (loading) return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Severe Weather Outlook</h2>
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Severe Weather Outlook</h2>
       <div className="skeleton h-48 rounded-2xl" />
     </section>
   )
@@ -47,13 +47,13 @@ export default function SPCOutlook({ lat, lon }) {
   return (
     <section className="mb-6">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider">Severe Weather Outlook</h2>
+        <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">Severe Weather Outlook</h2>
         <span className="text-text-muted text-xs">SPC Day 1</span>
       </div>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 overflow-hidden">
+      <div className="glass-card overflow-hidden">
         {/* Risk legend */}
         {maxRisk && (
-          <div className="px-4 py-2 border-b border-border/30 flex items-center gap-2">
+          <div className="px-4 py-2 border-b border-white/[0.04] flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: maxRisk.color }} />
             <span className="text-text text-sm font-medium">{maxRisk.label}</span>
             <span className="text-text-muted text-xs">in your area</span>

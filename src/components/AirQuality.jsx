@@ -32,8 +32,8 @@ function PollutantBar({ label, value, unit, max }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-text-muted text-[10px] w-10">{label}</span>
-      <div className="flex-1 h-1 bg-border/30 rounded-full">
-        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+      <div className="flex-1 h-1 bg-white/[0.04] rounded-full">
+        <div className="h-full rounded-full bg-accent/80" style={{ width: `${pct}%` }} />
       </div>
       <span className="text-text-dim text-[10px] w-12 text-right">{value.toFixed(1)} {unit}</span>
     </div>
@@ -53,7 +53,7 @@ export default function AirQuality({ lat, lon }) {
 
   if (loading) return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Air Quality</h2>
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Air Quality</h2>
       <div className="skeleton h-32 rounded-2xl" />
     </section>
   )
@@ -65,16 +65,22 @@ export default function AirQuality({ lat, lon }) {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Air Quality</h2>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Air Quality</h2>
+      <div className="glass-card p-4">
         <div className="flex items-center gap-4 mb-3">
           {/* AQI gauge */}
           <div className="relative w-16 h-16 flex-shrink-0">
             <svg viewBox="0 0 80 80" className="w-full h-full">
-              <circle cx="40" cy="40" r="32" fill="none" stroke="#2a2a4a" strokeWidth="6" />
+              <defs>
+                <filter id="aqiGlow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+              <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
               <circle
                 cx="40" cy="40" r="32" fill="none"
-                stroke={color} strokeWidth="6" strokeLinecap="round"
+                stroke={color} strokeWidth="6" strokeLinecap="round" filter="url(#aqiGlow)"
                 strokeDasharray={`${(Math.min(aqi, 300) / 300) * 201} 201`}
                 transform="rotate(-90 40 40)"
               />
@@ -89,7 +95,7 @@ export default function AirQuality({ lat, lon }) {
         </div>
 
         {/* Pollutant breakdown */}
-        <div className="space-y-1.5 pt-2 border-t border-border/30">
+        <div className="space-y-1.5 pt-3 border-t border-white/[0.04]">
           <PollutantBar label="PM2.5" value={data.pm2_5} unit="µg/m³" max={75} />
           <PollutantBar label="PM10" value={data.pm10} unit="µg/m³" max={150} />
           <PollutantBar label="O₃" value={data.ozone} unit="µg/m³" max={200} />

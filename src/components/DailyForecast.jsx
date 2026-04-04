@@ -57,39 +57,41 @@ export default function DailyForecast({ periods }) {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">7-Day Forecast</h2>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 divide-y divide-border/30">
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">7-Day Forecast</h2>
+      <div className="glass-card divide-premium">
         {days.slice(0, 7).map((day, idx) => {
           const precip = extractPrecipChance(day.detail)
           const barLeft = day.low != null ? ((day.low - minTemp) / range) * 100 : day.high != null ? ((day.high - minTemp) / range) * 100 : 0
           const barRight = day.high != null ? ((day.high - minTemp) / range) * 100 : barLeft
+          const barColor = day.high > 85 ? '#ff9800' : day.high > 70 ? '#66bb6a' : '#4fc3f7'
           return (
-            <div key={idx} className="flex items-center gap-3 px-4 py-3">
+            <div key={idx} className="flex items-center gap-3 px-4 py-3.5 row-hover">
               <span className="text-text-dim text-sm w-12 flex-shrink-0">
                 {getDayName(day.startTime, idx)}
               </span>
               <span className="text-lg w-8 text-center flex-shrink-0">
                 {shortEmoji(day.forecast)}
               </span>
-              <span className="text-text-dim text-sm w-8 text-right flex-shrink-0">
+              <span className="text-text-dim text-sm w-8 text-right flex-shrink-0 tabular-nums">
                 {day.low != null ? `${day.low}°` : ''}
               </span>
               {/* Temperature bar */}
-              <div className="flex-1 h-1.5 bg-border/30 rounded-full relative mx-1">
+              <div className="flex-1 h-2 bg-white/[0.04] rounded-full relative mx-1">
                 <div
                   className="absolute h-full rounded-full"
                   style={{
                     left: `${barLeft}%`,
                     width: `${Math.max(barRight - barLeft, 4)}%`,
-                    background: `linear-gradient(90deg, #4fc3f7, ${day.high > 85 ? '#ff9800' : day.high > 70 ? '#66bb6a' : '#4fc3f7'})`,
+                    background: `linear-gradient(90deg, #4fc3f7, ${barColor})`,
+                    boxShadow: `0 0 10px ${barColor}33`,
                   }}
                 />
               </div>
-              <span className="text-text text-sm w-8 flex-shrink-0">
+              <span className="text-text text-sm w-8 flex-shrink-0 tabular-nums">
                 {day.high != null ? `${day.high}°` : ''}
               </span>
               {precip != null && precip > 0 ? (
-                <span className="text-accent text-xs w-8 text-right flex-shrink-0">{precip}%</span>
+                <span className="text-accent text-xs w-8 text-right flex-shrink-0 tabular-nums">{precip}%</span>
               ) : (
                 <span className="w-8 flex-shrink-0" />
               )}

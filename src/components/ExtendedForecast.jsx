@@ -43,17 +43,18 @@ export default function ExtendedForecast({ lat, lon }) {
   return (
     <section className="mb-6">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider">Extended Outlook</h2>
+        <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">Extended Outlook</h2>
         <span className="text-text-muted text-xs">
           {totalPrecip > 0 ? `${totalPrecip.toFixed(2)}" precip expected` : 'Days 8-16'}
         </span>
       </div>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 divide-y divide-border/30">
+      <div className="glass-card divide-premium">
         {extended.map((day, idx) => {
           const barLeft = day.low != null ? ((day.low - minTemp) / range) * 100 : 0
           const barRight = day.high != null ? ((day.high - minTemp) / range) * 100 : barLeft
+          const barColor = day.high > 85 ? '#ff9800' : day.high > 70 ? '#66bb6a' : '#4fc3f7'
           return (
-            <div key={day.date} className="flex items-center gap-3 px-4 py-2.5">
+            <div key={day.date} className="flex items-center gap-3 px-4 py-3 row-hover">
               <span className="text-text-dim text-sm w-10 flex-shrink-0">
                 {getDayName(day.date, idx + 7)}
               </span>
@@ -63,13 +64,14 @@ export default function ExtendedForecast({ lat, lon }) {
               <span className="text-base w-7 text-center flex-shrink-0">
                 {WMO_EMOJI[day.code] || '🌤️'}
               </span>
-              <span className="text-text-dim text-sm w-8 text-right flex-shrink-0">{day.low}°</span>
-              <div className="flex-1 h-1.5 bg-border/30 rounded-full relative mx-1">
+              <span className="text-text-dim text-sm w-8 text-right flex-shrink-0 tabular-nums">{day.low}°</span>
+              <div className="flex-1 h-2 bg-white/[0.04] rounded-full relative mx-1">
                 <div className="absolute h-full rounded-full"
                   style={{
                     left: `${barLeft}%`,
                     width: `${Math.max(barRight - barLeft, 4)}%`,
-                    background: `linear-gradient(90deg, #4fc3f7, ${day.high > 85 ? '#ff9800' : day.high > 70 ? '#66bb6a' : '#4fc3f7'})`,
+                    background: `linear-gradient(90deg, #4fc3f7, ${barColor})`,
+                    boxShadow: `0 0 10px ${barColor}33`,
                   }}
                 />
               </div>

@@ -38,10 +38,10 @@ export default function ForecastCharts({ hourly }) {
       {/* Precipitation Probability */}
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider">48-Hour Precipitation Chance</h2>
+          <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">48-Hour Precipitation Chance</h2>
           <span className="text-text-muted text-xs">Avg {Math.round(totalPrecipChance)}%</span>
         </div>
-        <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
+        <div className="glass-card p-4">
           <div className="h-24">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
@@ -70,10 +70,10 @@ export default function ForecastCharts({ hourly }) {
       {/* Wind Speed Timeline */}
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider">48-Hour Wind Speed</h2>
+          <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">48-Hour Wind Speed</h2>
           <span className="text-text-muted text-xs">Peak {maxWind} mph</span>
         </div>
-        <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
+        <div className="glass-card p-4">
           <div className="h-24">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>

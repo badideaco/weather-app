@@ -100,12 +100,12 @@ export default function FlightTracker({ lat, lon }) {
   return (
     <section className="mb-6" ref={sectionRef}>
       <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider">Nearby Flights</h2>
+        <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">Nearby Flights</h2>
         {flights && (
           <span className="text-text-muted text-xs">{airborne.length} airborne</span>
         )}
       </div>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 overflow-hidden">
+      <div className="glass-card overflow-hidden">
         <div className="h-[300px] relative">
           {!visible ? (
             <div className="h-full flex items-center justify-center text-text-muted text-sm">

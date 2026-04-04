@@ -39,8 +39,8 @@ export default function PollenForecast({ lat, lon }) {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Pollen & Allergies</h2>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Pollen & Allergies</h2>
+      <div className="glass-card p-4">
         <div className="flex items-center gap-3 mb-3">
           <span className="text-2xl">{"🤧"}</span>
           <div>
@@ -59,7 +59,7 @@ export default function PollenForecast({ lat, lon }) {
             const val = data[t.key] || 0
             const level = pollenLevel(val)
             return (
-              <div key={t.key} className="bg-surface-light/30 rounded-lg p-2 text-center">
+              <div key={t.key} className="bg-white/[0.03] rounded-lg p-2 text-center border border-white/[0.03]">
                 <div className="text-sm mb-0.5">{t.icon}</div>
                 <div className="text-text-muted text-[10px]">{t.label}</div>
                 <div className="text-xs font-medium" style={{ color: level.color }}>{level.label}</div>

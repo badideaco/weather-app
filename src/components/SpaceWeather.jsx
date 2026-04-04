@@ -32,7 +32,7 @@ function ScaleCard({ label, icon, scale }) {
   const level = scale?.Scale || '0'
   const text = scale?.Text || 'None'
   return (
-    <div className="bg-surface-light/50 rounded-xl p-3 text-center">
+    <div className="bg-white/[0.03] rounded-xl p-3 text-center border border-white/[0.03]">
       <div className="text-lg mb-1">{icon}</div>
       <div className="text-text-muted text-[10px] uppercase tracking-wider mb-1">{label}</div>
       <div className={`text-lg font-bold ${scaleColor(level)}`}>
@@ -58,7 +58,7 @@ export default function SpaceWeather() {
   if (loading) {
     return (
       <section className="mb-6">
-        <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Space Weather</h2>
+        <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Space Weather</h2>
         <div className="skeleton h-48 rounded-2xl" />
       </section>
     )
@@ -73,18 +73,24 @@ export default function SpaceWeather() {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Space Weather</h2>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 p-4 space-y-4">
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Space Weather</h2>
+      <div className="glass-card p-4 space-y-4">
         {/* Kp Index Hero */}
         <div className="flex items-center gap-4">
           <div className="relative w-20 h-20 flex-shrink-0">
             <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-              <circle cx="50" cy="50" r="40" fill="none" stroke="#2a2a4a" strokeWidth="8" />
+              <defs>
+                <filter id="kpGlow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
               <circle
                 cx="50" cy="50" r="40" fill="none"
                 stroke={kpColor(data.kp)}
                 strokeWidth="8"
-                strokeLinecap="round"
+                strokeLinecap="round" filter="url(#kpGlow)"
                 strokeDasharray={`${(data.kp / 9) * 251.3} 251.3`}
               />
             </svg>

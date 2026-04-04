@@ -33,10 +33,10 @@ export default function SatelliteMap({ lat, lon }) {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Satellite Imagery</h2>
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Satellite Imagery</h2>
       <div
         ref={containerRef}
-        className={`bg-surface/60 rounded-2xl border border-border/40 overflow-hidden ${fullscreen ? 'fixed inset-0 z-[9999] rounded-none' : ''}`}
+        className={`glass-card overflow-hidden ${fullscreen ? 'fixed inset-0 z-[9999] rounded-none' : ''}`}
       >
         <div className={fullscreen ? 'h-[calc(100%-48px)]' : 'h-[300px]'}>
           <MapContainer

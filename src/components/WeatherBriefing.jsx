@@ -57,11 +57,11 @@ export default function WeatherBriefing({ observation, forecast, hourly, alerts,
 
   return (
     <section className="mb-6">
-      <div className="bg-gradient-to-br from-accent/10 via-surface/60 to-surface/60 rounded-2xl border border-accent/20 p-4">
-        <div className="flex items-center justify-between mb-2">
+      <div className="glass-card-accent p-5">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">{"🤖"}</span>
-            <h3 className="text-accent text-xs font-semibold uppercase tracking-wider">AI Weather Briefing</h3>
+            <h3 className="text-accent text-[11px] font-medium uppercase tracking-[0.08em]">AI Weather Briefing</h3>
           </div>
           {briefing && (
             <button onClick={handleRefresh} className="text-text-muted text-[10px] hover:text-accent transition-colors">
@@ -77,7 +77,7 @@ export default function WeatherBriefing({ observation, forecast, hourly, alerts,
         ) : error ? (
           <p className="text-text-muted text-sm">{error}</p>
         ) : briefing ? (
-          <p className="text-text text-sm leading-relaxed">{briefing}</p>
+          <p className="text-text/90 text-[0.9rem] leading-relaxed">{briefing}</p>
         ) : null}
       </div>
     </section>

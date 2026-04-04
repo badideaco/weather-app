@@ -5,15 +5,21 @@ export default function WindRose({ direction, speed, gust }) {
   const arrowRotation = direction ?? 0
 
   return (
-    <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
-      <h3 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3">Wind</h3>
+    <div className="glass-card p-4">
+      <h3 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3">Wind</h3>
       <div className="flex items-center gap-6">
         {/* Compass */}
         <div className="relative w-28 h-28 flex-shrink-0">
           <svg viewBox="0 0 120 120" className="w-full h-full">
+            <defs>
+              <filter id="windGlow">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
             {/* Compass ring */}
-            <circle cx="60" cy="60" r="54" fill="none" stroke="#2a2a4a" strokeWidth="1" />
-            <circle cx="60" cy="60" r="40" fill="none" stroke="#2a2a4a" strokeWidth="0.5" strokeDasharray="2 4" />
+            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+            <circle cx="60" cy="60" r="40" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" strokeDasharray="2 4" />
             {/* Cardinal directions */}
             {dirs.map((d, i) => {
               const angle = (i * 45 - 90) * (Math.PI / 180)
@@ -32,7 +38,7 @@ export default function WindRose({ direction, speed, gust }) {
             })}
             {/* Wind arrow */}
             {direction != null && (
-              <g transform={`rotate(${arrowRotation}, 60, 60)`}>
+              <g transform={`rotate(${arrowRotation}, 60, 60)`} filter="url(#windGlow)">
                 {/* Arrow pointing from direction wind comes FROM */}
                 <line x1="60" y1="22" x2="60" y2="75" stroke="#4fc3f7" strokeWidth="2.5" strokeLinecap="round" />
                 <polygon points="60,22 53,36 67,36" fill="#4fc3f7" />
@@ -42,7 +48,7 @@ export default function WindRose({ direction, speed, gust }) {
               </g>
             )}
             {/* Center dot */}
-            <circle cx="60" cy="60" r="3" fill="#4fc3f7" opacity="0.6" />
+            <circle cx="60" cy="60" r="3" fill="#4fc3f7" opacity="0.5" />
           </svg>
         </div>
 

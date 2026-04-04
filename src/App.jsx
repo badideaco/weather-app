@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, createContext } from 'react'
 import { getNWSPoint, getForecast, getHourlyForecast, getCurrentObservation, getAlerts, getYesterdayWeather } from './api'
 import CurrentWeather from './components/CurrentWeather'
 import HourlyForecast from './components/HourlyForecast'
@@ -38,6 +38,28 @@ function getSavedLocation() {
 
 function getNotifEnabled() {
   return localStorage.getItem(NOTIF_KEY) === 'true'
+}
+
+function RevealSection({ children, className = '' }) {
+  const ref = useRef(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect() } },
+      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={ref} className={`${visible ? 'reveal-visible' : 'reveal-hidden'} ${className}`}>
+      {children}
+    </div>
+  )
 }
 
 function getSeenAlerts() {
@@ -303,8 +325,11 @@ export default function App() {
       {/* Ambient weather animation */}
       {ambientDesc && <WeatherAmbient description={ambientDesc} isDaytime={ambientDaytime} />}
 
+      {/* Atmospheric overlay */}
+      <div className="atmo-overlay" />
+
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-bg/80 backdrop-blur-xl border-b border-border/50 px-4 py-3 relative">
+      <header className="sticky top-0 z-50 premium-header px-4 py-3 relative">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <LocationManager
             currentLocation={location}
@@ -356,54 +381,60 @@ export default function App() {
           <CurrentWeather observation={observation} period={currentPeriod} forecast={weather} yesterday={yesterday} />
         )}
 
-        {location && <MinutelyPrecip lat={location.lat} lon={location.lon} />}
+        {location && (
+          <RevealSection>
+            <MinutelyPrecip lat={location.lat} lon={location.lon} />
+          </RevealSection>
+        )}
 
         {/* Wind + UV + Clothing row */}
         {observation && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <WindRose direction={observation.windDirection} speed={observation.windSpeed} gust={observation.windGust} />
-            <div className="space-y-4">
-              <UVTimer uvIndex={currentPeriod?.isDaytime ? 5 : 0} />
-              <ClothingRec
-                temp={observation.temperature}
-                wind={observation.windSpeed}
-                humidity={observation.humidity}
-                conditions={observation.description}
-                uvIndex={currentPeriod?.isDaytime ? 5 : 0}
-              />
+          <RevealSection>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <WindRose direction={observation.windDirection} speed={observation.windSpeed} gust={observation.windGust} />
+              <div className="space-y-4">
+                <UVTimer uvIndex={currentPeriod?.isDaytime ? 5 : 0} />
+                <ClothingRec
+                  temp={observation.temperature}
+                  wind={observation.windSpeed}
+                  humidity={observation.humidity}
+                  conditions={observation.description}
+                  uvIndex={currentPeriod?.isDaytime ? 5 : 0}
+                />
+              </div>
             </div>
-          </div>
+          </RevealSection>
         )}
 
-        {hourly && <HourlyForecast periods={hourly} />}
+        {hourly && <RevealSection><HourlyForecast periods={hourly} /></RevealSection>}
 
-        {weather && <DailyForecast periods={weather} />}
+        {weather && <RevealSection><DailyForecast periods={weather} /></RevealSection>}
 
-        {location && <ExtendedForecast lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><ExtendedForecast lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        {hourly && <ForecastCharts hourly={hourly} />}
+        {hourly && <RevealSection><ForecastCharts hourly={hourly} /></RevealSection>}
 
-        {location && <RadarMap lat={location.lat} lon={location.lon} alerts={alerts} />}
+        {location && <RevealSection><RadarMap lat={location.lat} lon={location.lon} alerts={alerts} /></RevealSection>}
 
-        {location && <SatelliteMap lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><SatelliteMap lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        {location && <SPCOutlook lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><SPCOutlook lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        {location && <AirQuality lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><AirQuality lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        {location && <PollenForecast lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><PollenForecast lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        <SpaceWeather />
+        <RevealSection><SpaceWeather /></RevealSection>
 
-        {location && <Astronomy lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><Astronomy lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        {location && <WeatherHistory lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><WeatherHistory lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        {location && <FlightTracker lat={location.lat} lon={location.lon} />}
+        {location && <RevealSection><FlightTracker lat={location.lat} lon={location.lon} /></RevealSection>}
 
-        <footer className="mt-8 pt-4 border-t border-border/30 text-center text-text-muted text-xs">
+        <footer className="mt-8 pt-4 border-t border-white/[0.04] text-center text-text-muted text-xs">
           <p>Data from NWS, NOAA SWPC, RainViewer, OpenSky Network, NASA</p>
-          <p className="mt-1">StormScope Weather</p>
+          <p className="mt-1 text-text-muted/60">StormScope Weather</p>
         </footer>
       </main>
     </div>

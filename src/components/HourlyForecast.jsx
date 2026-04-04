@@ -34,21 +34,22 @@ export default function HourlyForecast({ periods }) {
 
   return (
     <section className="mb-6">
-      <h2 className="text-text-dim text-xs font-semibold uppercase tracking-wider mb-3 px-1">Hourly Forecast</h2>
-      <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
+      <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">Hourly Forecast</h2>
+      <div className="glass-card p-4">
         <div className="scroll-x flex gap-4">
           {items.map((p, i) => {
             const precip = extractPrecipChance(p.detailedForecast)
+            const isNow = i === 0
             return (
-              <div key={i} className="flex flex-col items-center flex-shrink-0 min-w-[3.5rem]">
-                <span className="text-text-muted text-xs mb-2">
-                  {i === 0 ? 'Now' : getHourLabel(p.startTime)}
+              <div key={i} className={`flex flex-col items-center flex-shrink-0 min-w-[3.5rem] py-1 px-1 rounded-xl transition-colors ${isNow ? 'bg-accent/[0.07]' : ''}`}>
+                <span className={`text-xs mb-2 ${isNow ? 'text-accent font-medium' : 'text-text-muted'}`}>
+                  {isNow ? 'Now' : getHourLabel(p.startTime)}
                 </span>
                 <span className="text-xl mb-1">{shortEmoji(p.shortForecast)}</span>
                 {precip != null && precip > 0 && (
                   <span className="text-accent text-[10px] mb-1">{precip}%</span>
                 )}
-                <span className="text-text font-medium text-sm">{p.temperature}°</span>
+                <span className={`font-medium text-sm tabular-nums ${isNow ? 'text-text' : 'text-text/90'}`}>{p.temperature}°</span>
               </div>
             )
           })}
