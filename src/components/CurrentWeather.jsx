@@ -36,12 +36,31 @@ function DetailItem({ label, value, unit }) {
   )
 }
 
-export default function CurrentWeather({ observation, period, forecast }) {
+function dewpointComfort(dp) {
+  if (dp == null) return null
+  if (dp >= 75) return { text: 'Oppressive', color: '#ef4444' }
+  if (dp >= 70) return { text: 'Muggy', color: '#f97316' }
+  if (dp >= 65) return { text: 'Sticky', color: '#eab308' }
+  if (dp >= 60) return { text: 'Humid', color: '#66bb6a' }
+  if (dp >= 50) return { text: 'Comfortable', color: '#4fc3f7' }
+  return { text: 'Dry', color: '#8888a8' }
+}
+
+function pressureTrend(current, yesterday) {
+  if (current == null || yesterday == null) return null
+  const diff = parseFloat(current) - yesterday * 0.02953 // hPa to inHg
+  if (diff > 0.06) return { text: 'Rising rapidly', icon: '↑↑', color: '#22c55e' }
+  if (diff > 0.02) return { text: 'Rising', icon: '↑', color: '#66bb6a' }
+  if (diff < -0.06) return { text: 'Falling rapidly', icon: '↓↓', color: '#ef4444' }
+  if (diff < -0.02) return { text: 'Falling', icon: '↓', color: '#f97316' }
+  return { text: 'Steady', icon: '→', color: '#8888a8' }
+}
+
+export default function CurrentWeather({ observation, period, forecast, yesterday }) {
   const temp = observation?.temperature ?? period?.temperature
   const desc = observation?.description || period?.shortForecast || ''
   const feelsLike = observation?.heatIndex || observation?.windChill
 
-  // Get today's high/low from forecast periods
   let high = null, low = null
   if (forecast) {
     for (const p of forecast.slice(0, 4)) {
@@ -50,25 +69,32 @@ export default function CurrentWeather({ observation, period, forecast }) {
     }
   }
 
+  const dpComfort = dewpointComfort(observation?.dewpoint)
+  const pTrend = pressureTrend(observation?.pressure, yesterday?.avgPressure)
+  const tempDiff = yesterday?.high != null && high != null ? high - yesterday.high : null
+
   return (
     <section className="mt-6 mb-6">
-      {/* Main temp display */}
       <div className="text-center mb-6">
         <div className="text-5xl mb-2">{getEmoji(desc)}</div>
         <div className="text-8xl font-extralight tracking-tighter text-text leading-none">
           {temp != null ? `${temp}°` : '--'}
         </div>
         <div className="text-text-dim text-lg mt-2">{desc}</div>
-        <div className="flex items-center justify-center gap-4 mt-2 text-sm">
+        <div className="flex items-center justify-center gap-4 mt-2 text-sm flex-wrap">
           {feelsLike != null && feelsLike !== temp && (
             <span className="text-text-dim">Feels like {feelsLike}°</span>
           )}
           {high != null && <span className="text-text">H: {high}°</span>}
           {low != null && <span className="text-text-dim">L: {low}°</span>}
+          {tempDiff != null && tempDiff !== 0 && (
+            <span className={tempDiff > 0 ? 'text-amber-400' : 'text-blue-400'}>
+              {tempDiff > 0 ? `${tempDiff}° warmer` : `${Math.abs(tempDiff)}° cooler`} than yesterday
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Detail grid */}
       {observation && (
         <div className="bg-surface/60 rounded-2xl border border-border/40 p-4">
           <div className="grid grid-cols-3 gap-4">
@@ -78,14 +104,18 @@ export default function CurrentWeather({ observation, period, forecast }) {
               unit=" mph"
             />
             <DetailItem label="Humidity" value={observation.humidity} unit="%" />
-            <DetailItem label="Dewpoint" value={observation.dewpoint} unit="°F" />
-            <DetailItem label="Pressure" value={observation.pressure} unit="&quot;" />
+            <div className="text-center">
+              <div className="text-text-muted text-xs mb-1">Dewpoint</div>
+              <div className="text-text font-medium text-sm">{observation.dewpoint}°F</div>
+              {dpComfort && <div className="text-[10px] mt-0.5" style={{ color: dpComfort.color }}>{dpComfort.text}</div>}
+            </div>
+            <div className="text-center">
+              <div className="text-text-muted text-xs mb-1">Pressure</div>
+              <div className="text-text font-medium text-sm">{observation.pressure}"</div>
+              {pTrend && <div className="text-[10px] mt-0.5" style={{ color: pTrend.color }}>{pTrend.icon} {pTrend.text}</div>}
+            </div>
             <DetailItem label="Visibility" value={observation.visibility} unit=" mi" />
-            <DetailItem
-              label="Gusts"
-              value={observation.windGust}
-              unit={observation.windGust ? ' mph' : ''}
-            />
+            <DetailItem label="Gusts" value={observation.windGust} unit={observation.windGust ? ' mph' : ''} />
           </div>
         </div>
       )}

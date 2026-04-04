@@ -202,8 +202,45 @@ export default function Astronomy({ lat, lon }) {
               <div className="text-text text-sm font-medium">{formatTime(sunMoon.sunrise)}</div>
             </div>
             <div className="text-center">
-              <div className="text-text-muted text-[10px]">Solar Noon</div>
-              <div className="text-text text-sm font-medium">{formatTime(sunMoon.solarNoon)}</div>
+              {isDaytime && sunMoon.sunset ? (() => {
+                const mins = Math.round((sunMoon.sunset - now) / 60000)
+                const hrs = Math.floor(mins / 60)
+                const m = mins % 60
+                return mins > 0 ? (
+                  <>
+                    <div className="text-amber-400 text-[10px]">Sunset in</div>
+                    <div className="text-amber-400 text-sm font-medium">{hrs}h {m}m</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-text-muted text-[10px]">Solar Noon</div>
+                    <div className="text-text text-sm font-medium">{formatTime(sunMoon.solarNoon)}</div>
+                  </>
+                )
+              })() : !isDaytime && sunMoon.sunrise ? (() => {
+                const tomorrow = new Date(sunMoon.sunrise)
+                tomorrow.setDate(tomorrow.getDate() + 1)
+                const target = now > sunMoon.sunrise ? tomorrow : sunMoon.sunrise
+                const mins = Math.round((target - now) / 60000)
+                const hrs = Math.floor(mins / 60)
+                const m = mins % 60
+                return mins > 0 && mins < 1440 ? (
+                  <>
+                    <div className="text-orange-300 text-[10px]">Sunrise in</div>
+                    <div className="text-orange-300 text-sm font-medium">{hrs}h {m}m</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-text-muted text-[10px]">Solar Noon</div>
+                    <div className="text-text text-sm font-medium">{formatTime(sunMoon.solarNoon)}</div>
+                  </>
+                )
+              })() : (
+                <>
+                  <div className="text-text-muted text-[10px]">Solar Noon</div>
+                  <div className="text-text text-sm font-medium">{formatTime(sunMoon.solarNoon)}</div>
+                </>
+              )}
             </div>
             <div className="text-center">
               <div className="text-text-muted text-[10px]">Sunset</div>

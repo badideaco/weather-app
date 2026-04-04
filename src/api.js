@@ -189,6 +189,88 @@ export async function getAPOD() {
   }
 }
 
+// ── Open-Meteo: Minutely Precipitation ──
+
+export async function getMinutelyPrecip(lat, lon) {
+  const data = await fetchJSON(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&minutely_15=precipitation,weathercode&forecast_minutely_15=96&timezone=auto`
+  )
+  if (!data.minutely_15) return []
+  return data.minutely_15.time.map((t, i) => ({
+    time: t,
+    precip: data.minutely_15.precipitation[i] || 0,
+    code: data.minutely_15.weathercode?.[i],
+  }))
+}
+
+// ── Open-Meteo: Extended 16-day Forecast ──
+
+export async function getExtendedForecast(lat, lon) {
+  const data = await fetchJSON(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weathercode,windspeed_10m_max&temperature_unit=fahrenheit&precipitation_unit=inch&windspeed_unit=mph&forecast_days=16&timezone=auto`
+  )
+  if (!data.daily) return []
+  return data.daily.time.map((t, i) => ({
+    date: t,
+    high: Math.round(data.daily.temperature_2m_max[i]),
+    low: Math.round(data.daily.temperature_2m_min[i]),
+    precipProb: data.daily.precipitation_probability_max[i],
+    precipAmount: data.daily.precipitation_sum[i],
+    code: data.daily.weathercode[i],
+    windMax: Math.round(data.daily.windspeed_10m_max[i]),
+  }))
+}
+
+// ── Open-Meteo: Yesterday's Weather (temp trend) ──
+
+export async function getYesterdayWeather(lat, lon) {
+  const y = new Date(); y.setDate(y.getDate() - 1)
+  const yStr = y.toISOString().split('T')[0]
+  const data = await fetchJSON(
+    `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yStr}&end_date=${yStr}&daily=temperature_2m_max,temperature_2m_min&hourly=surface_pressure&temperature_unit=fahrenheit&timezone=auto`
+  )
+  const pressures = (data.hourly?.surface_pressure || []).filter(p => p != null)
+  return {
+    high: data.daily?.temperature_2m_max?.[0] != null ? Math.round(data.daily.temperature_2m_max[0]) : null,
+    low: data.daily?.temperature_2m_min?.[0] != null ? Math.round(data.daily.temperature_2m_min[0]) : null,
+    avgPressure: pressures.length ? pressures.reduce((a, b) => a + b, 0) / pressures.length : null,
+  }
+}
+
+// ── Open-Meteo: Pollen Forecast ──
+
+export async function getPollenForecast(lat, lon) {
+  const data = await fetchJSON(
+    `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto`
+  )
+  if (!data.current) return null
+  const c = data.current
+  return {
+    grass: c.grass_pollen,
+    ragweed: c.ragweed_pollen,
+    birch: c.birch_pollen,
+    alder: c.alder_pollen,
+    mugwort: c.mugwort_pollen,
+    olive: c.olive_pollen,
+  }
+}
+
+// ── SPC Convective Outlook ──
+
+export async function getSPCOutlook() {
+  try {
+    const data = await fetchJSON('https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson')
+    return data.features?.map(f => ({
+      risk: f.properties?.LABEL || f.properties?.LABEL2 || 'Unknown',
+      fill: f.properties?.fill || '#888',
+      stroke: f.properties?.stroke || '#888',
+      polygon: f.geometry?.coordinates?.[0]?.map(ring =>
+        Array.isArray(ring[0]) ? ring.map(c => [c[1], c[0]]) : [[ring[1], ring[0]]]
+      ).flat() || [],
+    })).filter(f => f.polygon.length > 0) || []
+  } catch { return [] }
+}
+
 // ── Unit conversions ──
 
 function celsiusToF(c) {

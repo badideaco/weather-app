@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getNWSPoint, getForecast, getHourlyForecast, getCurrentObservation, getAlerts } from './api'
+import { getNWSPoint, getForecast, getHourlyForecast, getCurrentObservation, getAlerts, getYesterdayWeather } from './api'
 import CurrentWeather from './components/CurrentWeather'
 import HourlyForecast from './components/HourlyForecast'
 import DailyForecast from './components/DailyForecast'
@@ -16,6 +16,12 @@ import WeatherBriefing from './components/WeatherBriefing'
 import LocationManager from './components/LocationManager'
 import AirQuality from './components/AirQuality'
 import WeatherHistory from './components/WeatherHistory'
+import MinutelyPrecip from './components/MinutelyPrecip'
+import ForecastCharts from './components/ForecastCharts'
+import SPCOutlook from './components/SPCOutlook'
+import ExtendedForecast from './components/ExtendedForecast'
+import SatelliteMap from './components/SatelliteMap'
+import PollenForecast from './components/PollenForecast'
 
 const STORAGE_KEY = 'stormscope-location'
 const NOTIF_KEY = 'stormscope-notif'
@@ -65,6 +71,7 @@ export default function App() {
   const [manualEntry, setManualEntry] = useState(false)
   const [zipInput, setZipInput] = useState('')
   const [notifEnabled, setNotifEnabled] = useState(getNotifEnabled)
+  const [yesterday, setYesterday] = useState(null)
   const seenAlertsRef = useRef(getSeenAlerts())
   const alertPollRef = useRef(null)
   const refreshRef = useRef(null)
@@ -74,6 +81,8 @@ export default function App() {
     setError(null)
     try {
       const point = await getNWSPoint(lat, lon)
+      // Fetch yesterday's data in parallel (non-blocking)
+      getYesterdayWeather(lat, lon).then(setYesterday).catch(() => {})
       setLocationName(`${point.city}, ${point.state}`)
 
       const [forecast, hourlyData, obs, alertData] = await Promise.allSettled([
@@ -344,8 +353,10 @@ export default function App() {
         <WeatherBriefing observation={observation} forecast={weather} hourly={hourly} alerts={alerts} locationName={locationName} />
 
         {(observation || currentPeriod) && (
-          <CurrentWeather observation={observation} period={currentPeriod} forecast={weather} />
+          <CurrentWeather observation={observation} period={currentPeriod} forecast={weather} yesterday={yesterday} />
         )}
+
+        {location && <MinutelyPrecip lat={location.lat} lon={location.lon} />}
 
         {/* Wind + UV + Clothing row */}
         {observation && (
@@ -368,9 +379,19 @@ export default function App() {
 
         {weather && <DailyForecast periods={weather} />}
 
+        {location && <ExtendedForecast lat={location.lat} lon={location.lon} />}
+
+        {hourly && <ForecastCharts hourly={hourly} />}
+
         {location && <RadarMap lat={location.lat} lon={location.lon} alerts={alerts} />}
 
+        {location && <SatelliteMap lat={location.lat} lon={location.lon} />}
+
+        {location && <SPCOutlook lat={location.lat} lon={location.lon} />}
+
         {location && <AirQuality lat={location.lat} lon={location.lon} />}
+
+        {location && <PollenForecast lat={location.lat} lon={location.lon} />}
 
         <SpaceWeather />
 
