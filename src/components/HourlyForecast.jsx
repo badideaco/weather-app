@@ -1,11 +1,4 @@
-function getHourLabel(iso) {
-  const d = new Date(iso)
-  const h = d.getHours()
-  if (h === 0) return '12a'
-  if (h < 12) return `${h}a`
-  if (h === 12) return '12p'
-  return `${h - 12}p`
-}
+import { getHourLabel } from '../timezone'
 
 function shortEmoji(forecast) {
   if (!forecast) return ''

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatDateTime } from '../timezone'
 
 const severityColors = {
   Extreme: 'bg-red-900/40 border-red-500/60 text-red-300',
@@ -65,7 +66,7 @@ export default function WeatherAlerts({ alerts }) {
                 )}
                 {alert.expires && (
                   <p className="text-[10px] opacity-60">
-                    Expires: {new Date(alert.expires).toLocaleString()}
+                    Expires: {formatDateTime(new Date(alert.expires))}
                   </p>
                 )}
               </div>

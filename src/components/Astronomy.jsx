@@ -4,11 +4,7 @@ import SunCalc from 'suncalc'
 import * as AstroEngine from 'astronomy-engine'
 import { getAPOD } from '../api'
 import SkyMap from './SkyMap'
-
-function formatTime(date) {
-  if (!date || isNaN(date.getTime())) return '--'
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
+import { formatTime } from '../timezone'
 
 function getMoonPhaseName(phase) {
   if (phase < 0.03 || phase >= 0.97) return 'New Moon'

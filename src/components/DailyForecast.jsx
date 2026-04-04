@@ -12,16 +12,21 @@ function shortEmoji(forecast) {
   return '\uD83C\uDF24\uFE0F'
 }
 
-function extractPrecipChance(detail) {
+function extractPrecipChance(period) {
+  // Use direct probabilityOfPrecipitation field first, fall back to text parsing
+  if (period?.probabilityOfPrecipitation?.value != null) return period.probabilityOfPrecipitation.value
+  const detail = period?.detailedForecast
   if (!detail) return null
   const match = detail.match(/(\d+)\s*percent/i)
   return match ? parseInt(match[1]) : null
 }
 
+import { TZ } from '../timezone'
+
 function getDayName(iso, index) {
   if (index === 0) return 'Today'
   const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { weekday: 'short' })
+  return d.toLocaleDateString('en-US', { weekday: 'short', timeZone: TZ })
 }
 
 export default function DailyForecast({ periods }) {
@@ -32,7 +37,7 @@ export default function DailyForecast({ periods }) {
   let i = 0
   // Skip the first period if it's a night (Tonight) — pair it alone
   if (!periods[0]?.isDaytime) {
-    days.push({ name: periods[0].name, high: null, low: periods[0].temperature, forecast: periods[0].shortForecast, detail: periods[0].detailedForecast, startTime: periods[0].startTime })
+    days.push({ name: periods[0].name, high: null, low: periods[0].temperature, forecast: periods[0].shortForecast, period: periods[0], startTime: periods[0].startTime })
     i = 1
   }
   while (i < periods.length) {
@@ -43,7 +48,7 @@ export default function DailyForecast({ periods }) {
       high: day?.temperature,
       low: night?.temperature ?? null,
       forecast: day?.shortForecast,
-      detail: day?.detailedForecast,
+      period: day,
       startTime: day?.startTime,
     })
     i += 2
@@ -60,7 +65,7 @@ export default function DailyForecast({ periods }) {
       <h2 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em] mb-3 px-1">7-Day Forecast</h2>
       <div className="glass-card divide-premium">
         {days.slice(0, 7).map((day, idx) => {
-          const precip = extractPrecipChance(day.detail)
+          const precip = extractPrecipChance(day.period)
           const barLeft = day.low != null ? ((day.low - minTemp) / range) * 100 : day.high != null ? ((day.high - minTemp) / range) * 100 : 0
           const barRight = day.high != null ? ((day.high - minTemp) / range) * 100 : barLeft
           const barColor = day.high > 85 ? '#ff9800' : day.high > 70 ? '#66bb6a' : '#4fc3f7'

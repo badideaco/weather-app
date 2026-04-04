@@ -1,35 +1,61 @@
-import { useState, useCallback } from 'react'
-import { MapContainer, TileLayer, WMSTileLayer, CircleMarker } from 'react-leaflet'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const SATELLITE_LAYERS = [
-  { id: 'visible', label: 'Visible', layer: 'goes_east' },
-  { id: 'infrared', label: 'Infrared', layer: 'goes_east_ir' },
-  { id: 'water', label: 'Water Vapor', layer: 'goes_east_wv' },
-]
+// RainViewer provides satellite infrared tiles with proper CORS
+function SatelliteOverlay({ host, path }) {
+  const map = useMap()
+  const layerRef = useRef(null)
+
+  useEffect(() => {
+    if (!host || !path || !map) return
+    if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null }
+    const url = `${host}${path}/512/{z}/{x}/{y}/0/0_0.png`
+    layerRef.current = L.tileLayer(url, { opacity: 0.7, zIndex: 10, tileSize: 512, zoomOffset: -1 })
+    layerRef.current.addTo(map)
+    return () => { if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null } }
+  }, [map, host, path])
+
+  return null
+}
 
 export default function SatelliteMap({ lat, lon }) {
-  const [activeLayer, setActiveLayer] = useState('visible')
+  const [satData, setSatData] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [fullscreen, setFullscreen] = useState(false)
+  const containerRef = useRef(null)
 
-  const toggleFullscreen = useCallback((el) => {
-    if (!fullscreen && el) {
-      el.requestFullscreen?.() || el.webkitRequestFullscreen?.()
-      setFullscreen(true)
+  useEffect(() => {
+    fetch('https://api.rainviewer.com/public/weather-maps.json')
+      .then(r => r.json())
+      .then(data => {
+        const frames = data.satellite?.infrared || []
+        if (frames.length) {
+          setSatData({ host: data.host || 'https://tilecache.rainviewer.com', path: frames[frames.length - 1].path })
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    if (!fullscreen) {
+      containerRef.current?.requestFullscreen?.() || containerRef.current?.webkitRequestFullscreen?.()
     } else {
       document.exitFullscreen?.() || document.webkitExitFullscreen?.()
-      setFullscreen(false)
     }
   }, [fullscreen])
 
-  const containerRef = useCallback(node => {
-    if (!node) return
+  useEffect(() => {
     const handler = () => setFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', handler)
-    return () => document.removeEventListener('fullscreenchange', handler)
+    document.addEventListener('webkitfullscreenchange', handler)
+    return () => {
+      document.removeEventListener('fullscreenchange', handler)
+      document.removeEventListener('webkitfullscreenchange', handler)
+    }
   }, [])
-
-  const currentLayer = SATELLITE_LAYERS.find(l => l.id === activeLayer)
 
   return (
     <section className="mb-6">
@@ -39,41 +65,31 @@ export default function SatelliteMap({ lat, lon }) {
         className={`glass-card overflow-hidden ${fullscreen ? 'fixed inset-0 z-[9999] rounded-none' : ''}`}
       >
         <div className={fullscreen ? 'h-[calc(100%-48px)]' : 'h-[300px]'}>
-          <MapContainer
-            center={[lat, lon]}
-            zoom={6}
-            style={{ height: '100%', width: '100%' }}
-            zoomControl={false}
-            attributionControl={false}
-          >
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" subdomains="abcd" />
-            <WMSTileLayer
-              url="https://mesonet.agron.iastate.edu/cgi-bin/wms/goes_east.cgi"
-              layers={currentLayer.layer}
-              transparent={true}
-              format="image/png"
-              opacity={0.7}
-              zIndex={10}
-            />
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" subdomains="abcd" zIndex={20} />
-            <CircleMarker center={[lat, lon]} radius={5} pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.9, weight: 2 }} />
-          </MapContainer>
+          {loading ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <MapContainer
+              center={[lat, lon]}
+              zoom={6}
+              style={{ height: '100%', width: '100%' }}
+              zoomControl={false}
+              attributionControl={false}
+            >
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" subdomains="abcd" />
+              {satData && <SatelliteOverlay host={satData.host} path={satData.path} />}
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" subdomains="abcd" zIndex={20} />
+              <CircleMarker center={[lat, lon]} radius={5} pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.9, weight: 2 }} />
+            </MapContainer>
+          )}
         </div>
 
         {/* Controls */}
         <div className="px-4 py-2.5 flex items-center justify-between bg-bg/60">
-          <div className="flex gap-1">
-            {SATELLITE_LAYERS.map(l => (
-              <button key={l.id}
-                onClick={() => setActiveLayer(l.id)}
-                className={`px-3 py-1 rounded-lg text-xs transition-colors ${
-                  activeLayer === l.id ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-surface'
-                }`}
-              >{l.label}</button>
-            ))}
-          </div>
+          <span className="text-text-muted text-xs">Infrared</span>
           <button
-            onClick={(e) => toggleFullscreen(e.currentTarget.closest('[class*="rounded-2xl"], [class*="fixed"]'))}
+            onClick={toggleFullscreen}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface text-text-muted hover:text-text transition-colors"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">

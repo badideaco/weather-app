@@ -2,23 +2,62 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Polygon, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { getRadarFrames } from '../api'
+import { formatTime, TZ } from '../timezone'
 import 'leaflet/dist/leaflet.css'
 
-// ── Radar tile overlay (swaps on frame change) ──
+// ── Radar tile overlay (pre-loads ALL frames, toggles opacity) ──
 function RadarOverlay({ frames, host, currentFrame }) {
   const map = useMap()
-  const layerRef = useRef(null)
+  const layersRef = useRef([])
+  const prevFrameRef = useRef(-1)
 
+  // Create all tile layers once when frame data changes
   useEffect(() => {
     if (!frames?.length || !map) return
-    if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null }
-    const frame = frames[currentFrame]
-    if (!frame) return
-    const tileUrl = `${host}${frame.path}/512/{z}/{x}/{y}/6/1_1.png`
-    layerRef.current = L.tileLayer(tileUrl, { opacity: 0.65, zIndex: 10, tileSize: 512, zoomOffset: -1 })
-    layerRef.current.addTo(map)
-    return () => { if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null } }
-  }, [map, frames, host, currentFrame])
+
+    // Remove old layers
+    layersRef.current.forEach(l => {
+      if (l && map.hasLayer(l)) map.removeLayer(l)
+    })
+
+    // Pre-create every frame layer with opacity 0
+    const layers = frames.map((frame, i) => {
+      const url = `${host}${frame.path}/512/{z}/{x}/{y}/6/1_1.png`
+      const layer = L.tileLayer(url, {
+        opacity: i === currentFrame ? 0.65 : 0,
+        zIndex: 10,
+        tileSize: 512,
+        zoomOffset: -1,
+      })
+      layer.addTo(map)
+      return layer
+    })
+
+    layersRef.current = layers
+    prevFrameRef.current = currentFrame
+
+    return () => {
+      layers.forEach(l => {
+        if (l && map.hasLayer(l)) map.removeLayer(l)
+      })
+      layersRef.current = []
+    }
+  }, [map, frames, host]) // eslint-disable-line
+
+  // Toggle frame visibility (instant swap — no tile reload)
+  useEffect(() => {
+    const layers = layersRef.current
+    if (!layers.length) return
+
+    const prev = prevFrameRef.current
+    if (prev >= 0 && prev < layers.length && layers[prev]) {
+      layers[prev].setOpacity(0)
+    }
+    if (currentFrame >= 0 && currentFrame < layers.length && layers[currentFrame]) {
+      layers[currentFrame].setOpacity(0.65)
+    }
+    prevFrameRef.current = currentFrame
+  }, [currentFrame])
 
   return null
 }
@@ -40,7 +79,6 @@ function LightningLayer() {
         wsRef.current = ws
 
         ws.onopen = () => {
-          // Subscribe to North America region
           ws.send(JSON.stringify({ a: 418 }))
         }
 
@@ -51,7 +89,6 @@ function LightningLayer() {
               const strike = { lat: data.lat, lon: data.lon, time: Date.now() }
               strikesRef.current.push(strike)
 
-              // Add visual marker
               const circle = L.circleMarker([data.lat, data.lon], {
                 radius: 4,
                 color: '#fff',
@@ -60,7 +97,6 @@ function LightningLayer() {
                 weight: 1,
               }).addTo(map)
 
-              // Expand animation
               let size = 4
               const expand = setInterval(() => {
                 size += 1
@@ -76,7 +112,6 @@ function LightningLayer() {
 
         ws.onerror = () => {}
         ws.onclose = () => {
-          // Reconnect after 5 seconds
           reconnectTimer = setTimeout(connect, 5000)
         }
       } catch {}
@@ -84,7 +119,6 @@ function LightningLayer() {
 
     connect()
 
-    // Cleanup old strikes every 30 seconds
     const cleanup = setInterval(() => {
       const cutoff = Date.now() - 60000
       strikesRef.current = strikesRef.current.filter(s => s.time > cutoff)
@@ -136,6 +170,14 @@ function StormPolygons({ alerts }) {
     ))
 }
 
+// ── Relative time label ──
+function relativeLabel(unixSec) {
+  const diffMin = Math.round((unixSec - Date.now() / 1000) / 60)
+  if (Math.abs(diffMin) <= 1) return 'Now'
+  if (diffMin < 0) return `${Math.abs(diffMin)}m ago`
+  return `+${diffMin}m`
+}
+
 // ── Main component ──
 export default function RadarMap({ lat, lon, alerts }) {
   const [radarData, setRadarData] = useState(null)
@@ -146,6 +188,7 @@ export default function RadarMap({ lat, lon, alerts }) {
   const [showLightning, setShowLightning] = useState(true)
   const intervalRef = useRef(null)
   const containerRef = useRef(null)
+  const dwellRef = useRef(0)
 
   useEffect(() => {
     getRadarFrames()
@@ -155,14 +198,32 @@ export default function RadarMap({ lat, lon, alerts }) {
 
   const togglePlay = useCallback(() => setPlaying(prev => !prev), [])
 
+  // Animation loop with dwell at "now" (last past frame) and end of forecast
   useEffect(() => {
-    if (playing && radarData?.frames?.length) {
-      intervalRef.current = setInterval(() => {
-        setCurrentFrame(prev => (prev + 1) % radarData.frames.length)
-      }, 500)
-    } else {
+    if (!playing || !radarData?.frames?.length) {
       clearInterval(intervalRef.current)
+      return
     }
+
+    const totalFrames = radarData.frames.length
+    // Last past frame = the most recent actual radar image (not a forecast)
+    const lastPastIdx = radarData.frames.reduce((acc, f, i) => !f.forecast ? i : acc, 0)
+    const dwellFrames = new Set([lastPastIdx, totalFrames - 1])
+    const DWELL_TICKS = 3 // Extra ticks to pause (3 × 400ms = 1.2s dwell)
+
+    dwellRef.current = 0
+
+    intervalRef.current = setInterval(() => {
+      setCurrentFrame(prev => {
+        if (dwellFrames.has(prev) && dwellRef.current < DWELL_TICKS) {
+          dwellRef.current++
+          return prev // Hold on this frame
+        }
+        dwellRef.current = 0
+        return (prev + 1) % totalFrames
+      })
+    }, 400)
+
     return () => clearInterval(intervalRef.current)
   }, [playing, radarData])
 
@@ -185,10 +246,15 @@ export default function RadarMap({ lat, lon, alerts }) {
     }
   }, [])
 
-  const frameTime = radarData?.frames?.[currentFrame]
-    ? new Date(radarData.frames[currentFrame].time * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const currentFrameData = radarData?.frames?.[currentFrame]
+  const frameTime = currentFrameData
+    ? formatTime(new Date(currentFrameData.time * 1000))
     : ''
-  const isForecast = radarData?.frames?.[currentFrame]?.forecast
+  const relTime = currentFrameData ? relativeLabel(currentFrameData.time) : ''
+  const isForecast = currentFrameData?.forecast
+
+  // Find boundary between past and forecast for scrubber markers
+  const lastPastIdx = radarData?.frames?.reduce((acc, f, i) => !f.forecast ? i : acc, 0) ?? 0
 
   return (
     <section className="mb-6">
@@ -211,7 +277,7 @@ export default function RadarMap({ lat, lon, alerts }) {
         ref={containerRef}
         className={`glass-card overflow-hidden ${fullscreen ? 'fixed inset-0 z-[9999] rounded-none border-0' : ''}`}
       >
-        <div className={fullscreen ? 'h-[calc(100%-56px)]' : 'h-[350px]'} style={{ position: 'relative' }}>
+        <div className={fullscreen ? 'h-[calc(100%-72px)]' : 'h-[350px]'} style={{ position: 'relative' }}>
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -236,38 +302,76 @@ export default function RadarMap({ lat, lon, alerts }) {
         </div>
 
         {/* Controls */}
-        <div className="px-4 py-3 flex items-center gap-3 bg-bg/60">
-          <button onClick={togglePlay}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-accent/20 text-accent hover:bg-accent/30 transition-colors flex-shrink-0"
-          >
-            {playing ? (
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-            ) : (
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-            )}
-          </button>
-          {radarData && (
-            <input type="range" min={0} max={(radarData.frames.length || 1) - 1} value={currentFrame}
-              onChange={e => { setCurrentFrame(parseInt(e.target.value)); setPlaying(false) }}
-              className="flex-1 accent-accent h-1"
-            />
-          )}
-          <span className="text-xs text-text-dim min-w-[4rem] text-right">
-            {isForecast && <span className="text-accent mr-1">FC</span>}
-            {frameTime}
-          </span>
-          <button onClick={toggleFullscreen}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface text-text-muted hover:text-text transition-colors flex-shrink-0"
-            title={fullscreen ? 'Exit fullscreen' : 'Fullscreen radar'}
-          >
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-              {fullscreen ? (
-                <path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" />
+        <div className="px-4 py-3 bg-bg/60">
+          <div className="flex items-center gap-3">
+            <button onClick={togglePlay}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-accent/20 text-accent hover:bg-accent/30 transition-colors flex-shrink-0"
+            >
+              {playing ? (
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
               ) : (
-                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
               )}
-            </svg>
-          </button>
+            </button>
+
+            {/* Custom scrubber with past/forecast visual */}
+            {radarData && (
+              <div className="flex-1 relative">
+                <input type="range" min={0} max={(radarData.frames.length || 1) - 1} value={currentFrame}
+                  onChange={e => { setCurrentFrame(parseInt(e.target.value)); setPlaying(false); dwellRef.current = 0 }}
+                  className="w-full accent-accent h-1 relative z-10"
+                />
+                {/* Past/Forecast track markers */}
+                <div className="flex items-center mt-1 px-0.5" style={{ gap: 0 }}>
+                  {radarData.frames.map((f, i) => {
+                    const isNow = i === lastPastIdx
+                    const isCurrent = i === currentFrame
+                    return (
+                      <div
+                        key={i}
+                        className="flex-1 flex justify-center"
+                      >
+                        <div
+                          className={`rounded-full transition-all duration-150 ${
+                            isCurrent
+                              ? 'w-2 h-2 bg-accent'
+                              : isNow
+                                ? 'w-1.5 h-1.5 bg-text'
+                                : f.forecast
+                                  ? 'w-1 h-1 bg-accent/40'
+                                  : 'w-1 h-1 bg-text-muted/30'
+                          }`}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col items-end flex-shrink-0 min-w-[5.5rem]">
+              <span className="text-xs text-text-dim leading-tight">
+                {isForecast && <span className="text-accent mr-1">FC</span>}
+                {frameTime}
+              </span>
+              <span className={`text-[10px] leading-tight ${isForecast ? 'text-accent/70' : 'text-text-muted'}`}>
+                {relTime}
+              </span>
+            </div>
+
+            <button onClick={toggleFullscreen}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface text-text-muted hover:text-text transition-colors flex-shrink-0"
+              title={fullscreen ? 'Exit fullscreen' : 'Fullscreen radar'}
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                {fullscreen ? (
+                  <path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" />
+                ) : (
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </section>

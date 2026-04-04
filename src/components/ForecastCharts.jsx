@@ -1,20 +1,7 @@
 import { useMemo } from 'react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts'
 
-function getHourLabel(iso) {
-  const d = new Date(iso)
-  const h = d.getHours()
-  if (h === 0) return '12a'
-  if (h < 12) return `${h}a`
-  if (h === 12) return '12p'
-  return `${h - 12}p`
-}
-
-function extractPrecipChance(detail) {
-  if (!detail) return 0
-  const match = detail.match(/(\d+)\s*percent/i)
-  return match ? parseInt(match[1]) : 0
-}
+import { getHourLabel } from '../timezone'
 
 export default function ForecastCharts({ hourly }) {
   if (!hourly?.length) return null
@@ -22,16 +9,17 @@ export default function ForecastCharts({ hourly }) {
   const chartData = useMemo(() =>
     hourly.slice(0, 48).map(p => ({
       time: getHourLabel(p.startTime),
-      precip: extractPrecipChance(p.detailedForecast),
+      precip: p.probabilityOfPrecipitation?.value ?? 0,
       wind: parseInt(p.windSpeed) || 0,
       temp: p.temperature,
     })),
     [hourly]
   )
 
-  // Calculate total expected precipitation
   const totalPrecipChance = chartData.reduce((sum, d) => sum + d.precip, 0) / chartData.length
   const maxWind = Math.max(...chartData.map(d => d.wind))
+  // Round up to nearest 5 for a clean Y-axis
+  const windCeil = Math.ceil(maxWind / 5) * 5 || 10
 
   return (
     <section className="mb-6 space-y-4">
@@ -81,8 +69,14 @@ export default function ForecastCharts({ hourly }) {
                   dataKey="time" tick={{ fill: '#555570', fontSize: 10 }}
                   axisLine={false} tickLine={false} interval={5}
                 />
-                <YAxis hide />
-                <ReferenceLine y={15} stroke="#ff9800" strokeDasharray="3 3" strokeOpacity={0.3} label={{ value: '15', fill: '#555570', fontSize: 9, position: 'left' }} />
+                <YAxis
+                  domain={[0, windCeil]}
+                  tick={{ fill: '#555570', fontSize: 9 }}
+                  axisLine={false} tickLine={false}
+                  width={30}
+                  tickFormatter={v => `${v}`}
+                />
+                <ReferenceLine y={15} stroke="#ff9800" strokeDasharray="3 3" strokeOpacity={0.3} />
                 <Line
                   type="monotone" dataKey="wind" stroke="#66bb6a"
                   strokeWidth={2} dot={false}

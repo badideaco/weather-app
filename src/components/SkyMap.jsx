@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as AstroEngine from 'astronomy-engine'
 import SunCalc from 'suncalc'
 import { STARS, CONSTELLATIONS, MILKY_WAY_BAND, DEEP_SKY_OBJECTS, METEOR_RADIANTS, bvToColor } from '../data/starCatalog'
+import { formatTime as fmtTime, formatDate as fmtDate, TZ } from '../timezone'
 
 // ── Constants ──
 
@@ -169,8 +170,7 @@ function angularSep(alt1, az1, alt2, az2) {
 }
 
 function formatTime(date) {
-  if (!date) return '--'
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return fmtTime(date)
 }
 
 function compassLabel(az) {
@@ -1217,7 +1217,7 @@ export default function SkyMap({ lat, lon, onClose }) {
       {/* ── Time + Compass ── */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 text-center" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="text-white/70 text-sm font-light tabular-nums">
-          {virtualTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          {fmtTime(virtualTime)}
         </div>
         <div className="text-white/40 text-[10px] tracking-wider">
           {compassLabel(compassAz)} {compassAz}°
@@ -1225,7 +1225,7 @@ export default function SkyMap({ lat, lon, onClose }) {
         {timeOffset !== 0 && (
           <div className="text-amber-400/60 text-[9px] mt-0.5 tabular-nums">
             {timeOffset > 0 ? '+' : ''}{(timeOffset / 60).toFixed(1)}h &middot;{' '}
-            {virtualTime.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+            {fmtDate(virtualTime, { month: 'short', day: 'numeric' })}
           </div>
         )}
       </div>

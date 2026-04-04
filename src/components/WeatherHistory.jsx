@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { TZ } from '../timezone'
 
 const WMO_CODES = {
   0: 'Clear', 1: 'Mainly Clear', 2: 'Partly Cloudy', 3: 'Overcast',
@@ -84,7 +85,7 @@ export default function WeatherHistory({ lat, lon }) {
             <div className="flex-1 min-w-0">
               <div className="text-text text-sm font-medium">{h.label}</div>
               <div className="text-text-muted text-xs">
-                {new Date(h.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {new Date(h.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: TZ })}
                 {' · '}{WMO_CODES[h.code] || 'Unknown'}
               </div>
             </div>

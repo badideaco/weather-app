@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, createContext } from 'react'
 import { getNWSPoint, getForecast, getHourlyForecast, getCurrentObservation, getAlerts, getYesterdayWeather } from './api'
+import { formatTime } from './timezone'
 import CurrentWeather from './components/CurrentWeather'
 import HourlyForecast from './components/HourlyForecast'
 import DailyForecast from './components/DailyForecast'
@@ -198,7 +199,9 @@ export default function App() {
   }
 
   const handleRefresh = () => {
-    if (location) fetchWeather(location.lat, location.lon)
+    if (!location) return
+    localStorage.removeItem('stormscope-briefing')
+    fetchWeather(location.lat, location.lon)
   }
 
   const handleRelocate = () => {
@@ -340,7 +343,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             {lastUpdated && (
               <span className="text-text-muted text-xs hidden sm:block">
-                {lastUpdated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                {formatTime(lastUpdated)}
               </span>
             )}
             {'Notification' in (typeof window !== 'undefined' ? window : {}) && (
@@ -356,7 +359,7 @@ export default function App() {
               </button>
             )}
             <button onClick={handleRefresh} className="text-accent p-1.5 hover:bg-surface rounded-lg transition-colors" title="Refresh">
-              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg viewBox="0 0 24 24" className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 12a9 9 0 11-2.2-5.9M21 3v5h-5"/>
               </svg>
             </button>
@@ -380,6 +383,8 @@ export default function App() {
         {(observation || currentPeriod) && (
           <CurrentWeather observation={observation} period={currentPeriod} forecast={weather} yesterday={yesterday} />
         )}
+
+        {location && <RadarMap lat={location.lat} lon={location.lon} alerts={alerts} />}
 
         {location && (
           <RevealSection>
@@ -413,8 +418,6 @@ export default function App() {
         {location && <RevealSection><ExtendedForecast lat={location.lat} lon={location.lon} /></RevealSection>}
 
         {hourly && <RevealSection><ForecastCharts hourly={hourly} /></RevealSection>}
-
-        {location && <RevealSection><RadarMap lat={location.lat} lon={location.lon} alerts={alerts} /></RevealSection>}
 
         {location && <RevealSection><SatelliteMap lat={location.lat} lon={location.lon} /></RevealSection>}
 

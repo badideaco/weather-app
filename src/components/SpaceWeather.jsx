@@ -67,7 +67,7 @@ export default function SpaceWeather() {
   if (!data) return null
 
   const kpChartData = data.kpHistory.map(h => ({
-    time: new Date(h.time).toLocaleTimeString([], { hour: 'numeric' }),
+    time: new Date(h.time).toLocaleTimeString('en-US', { hour: 'numeric', timeZone: 'America/Chicago' }),
     kp: h.kp,
   }))
 

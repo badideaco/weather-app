@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { getCentralHour } from '../timezone'
 
 const BRIEFING_URL = 'https://4pi2u7nqpftngmhbscfu2d3y6m0zugjo.lambda-url.us-east-2.on.aws'
 const CACHE_KEY = 'stormscope-briefing'
@@ -60,8 +61,8 @@ export default function WeatherBriefing({ observation, forecast, hourly, alerts,
       <div className="glass-card-accent p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg">{"🤖"}</span>
-            <h3 className="text-accent text-[11px] font-medium uppercase tracking-[0.08em]">AI Weather Briefing</h3>
+            <span className="text-lg">{"👴"}</span>
+            <h3 className="text-accent text-[11px] font-medium uppercase tracking-[0.08em]">Old Man Weather</h3>
           </div>
           {briefing && (
             <button onClick={handleRefresh} className="text-text-muted text-[10px] hover:text-accent transition-colors">
@@ -72,7 +73,7 @@ export default function WeatherBriefing({ observation, forecast, hourly, alerts,
         {loading ? (
           <div className="flex items-center gap-2 py-2">
             <div className="w-4 h-4 border border-accent border-t-transparent rounded-full animate-spin" />
-            <span className="text-text-dim text-sm">Analyzing conditions...</span>
+            <span className="text-text-dim text-sm">Grumbling about the weather...</span>
           </div>
         ) : error ? (
           <p className="text-text-muted text-sm">{error}</p>
@@ -98,7 +99,7 @@ function buildContext(obs, forecast, hourly, alerts, location) {
   if (hourly?.length) {
     const next6 = hourly.slice(0, 6).map(h => {
       const t = new Date(h.startTime)
-      return `${t.getHours()}:00=${h.temperature}°F ${h.shortForecast}`
+      return `${getCentralHour(t)}:00=${h.temperature}°F ${h.shortForecast}`
     })
     parts.push(`Next 6hr: ${next6.join(', ')}`)
   }

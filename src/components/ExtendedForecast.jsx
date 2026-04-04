@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getExtendedForecast } from '../api'
+import { TZ } from '../timezone'
 
 const WMO_EMOJI = {
   0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️',
@@ -12,7 +13,7 @@ function getDayName(dateStr, i) {
   if (i === 0) return 'Today'
   if (i === 1) return 'Tmrw'
   const d = new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('en-US', { weekday: 'short' })
+  return d.toLocaleDateString('en-US', { weekday: 'short', timeZone: TZ })
 }
 
 export default function ExtendedForecast({ lat, lon }) {
@@ -59,7 +60,7 @@ export default function ExtendedForecast({ lat, lon }) {
                 {getDayName(day.date, idx + 7)}
               </span>
               <span className="text-xs text-text-muted w-10 flex-shrink-0">
-                {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ })}
               </span>
               <span className="text-base w-7 text-center flex-shrink-0">
                 {WMO_EMOJI[day.code] || '🌤️'}
