@@ -28,13 +28,14 @@ function FlightMarkers({ flights }) {
       <Popup className="dark-popup">
         <div style={{ color: '#e8e8ec', fontSize: '12px', lineHeight: 1.5 }}>
           <strong style={{ fontSize: '14px' }}>{f.callsign || f.icao24}</strong>
+          {f.type && <span style={{ color: '#8888a8', marginLeft: 6 }}>{f.type}</span>}
           <br />
           {f.altitude != null && <>Alt: {f.altitude.toLocaleString()} ft<br /></>}
           {f.velocity != null && <>Speed: {f.velocity} mph<br /></>}
           {f.verticalRate != null && f.verticalRate !== 0 && (
-            <>{f.verticalRate > 0 ? '\u2197\uFE0F' : '\u2198\uFE0F'} {Math.abs(f.verticalRate)} ft/min<br /></>
+            <>{f.verticalRate > 0 ? '↗️' : '↘️'} {Math.abs(f.verticalRate)} ft/min<br /></>
           )}
-          {f.country && <span style={{ color: '#8888a8' }}>{f.country}</span>}
+          {f.registration && <span style={{ color: '#8888a8' }}>{f.registration}</span>}
         </div>
       </Popup>
     </Marker>
@@ -163,6 +164,7 @@ export default function FlightTracker({ lat, lon }) {
                 <span className="text-accent text-xs font-mono w-16 flex-shrink-0">
                   {f.callsign || f.icao24}
                 </span>
+                {f.type && <span className="text-text-muted text-[10px] w-10 flex-shrink-0">{f.type}</span>}
                 <span className="text-text-muted text-xs flex-1">
                   {f.altitude?.toLocaleString()} ft
                 </span>
@@ -171,7 +173,7 @@ export default function FlightTracker({ lat, lon }) {
                 </span>
                 {f.verticalRate != null && f.verticalRate !== 0 && (
                   <span className={`text-xs ${f.verticalRate > 0 ? 'text-green-400' : 'text-orange-400'}`}>
-                    {f.verticalRate > 0 ? '\u2191' : '\u2193'}
+                    {f.verticalRate > 0 ? '↑' : '↓'}
                   </span>
                 )}
               </div>

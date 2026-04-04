@@ -139,24 +139,29 @@ export async function getSpaceWeather() {
   }
 }
 
-// ── OpenSky Flight Tracking ──
+// ── Flight Tracking (adsb.lol via Lambda proxy for CORS) ──
 
-export async function getNearbyFlights(lat, lon, radiusDeg = 1.5) {
-  const url = `https://opensky-network.org/api/states/all?lamin=${lat - radiusDeg}&lomin=${lon - radiusDeg}&lamax=${lat + radiusDeg}&lomax=${lon + radiusDeg}`
-  const data = await fetchJSON(url)
-  if (!data.states) return []
-  return data.states.slice(0, 80).map(s => ({
-    icao24: s[0],
-    callsign: (s[1] || '').trim(),
-    country: s[2],
-    lon: s[5],
-    lat: s[6],
-    altitude: s[7] != null ? Math.round(s[7] * 3.28084) : null, // meters to feet
-    velocity: s[9] != null ? Math.round(s[9] * 2.237) : null, // m/s to mph
-    heading: s[10],
-    verticalRate: s[11] != null ? Math.round(s[11] * 196.85) : null, // m/s to ft/min
-    onGround: s[8],
-  }))
+const FLIGHT_PROXY = 'https://ur5hdq5qngb7wdqeorhn7rz5yu0ahqwy.lambda-url.us-east-2.on.aws'
+
+export async function getNearbyFlights(lat, lon) {
+  const data = await fetchJSON(`${FLIGHT_PROXY}?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&dist=100`)
+  if (!data.ac) return []
+  return data.ac
+    .filter(a => a.lat != null && a.lon != null)
+    .slice(0, 80)
+    .map(a => ({
+      icao24: a.hex,
+      callsign: (a.flight || a.hex || '').trim(),
+      type: a.t || '',
+      registration: a.r || '',
+      lon: a.lon,
+      lat: a.lat,
+      altitude: a.alt_baro !== 'ground' ? a.alt_baro : 0,
+      velocity: a.gs != null ? Math.round(a.gs * 1.151) : null, // knots to mph
+      heading: a.track,
+      verticalRate: a.baro_rate || a.geom_rate || 0,
+      onGround: a.alt_baro === 'ground',
+    }))
 }
 
 // ── NASA APOD ──
