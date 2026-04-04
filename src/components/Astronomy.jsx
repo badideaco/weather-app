@@ -43,7 +43,7 @@ function ISSTracker() {
 
   return (
     <div className="flex items-center gap-3 py-2">
-      <span className="text-xl">\uD83D\uDEF0\uFE0F</span>
+      <span className="text-xl">{"🛰️"}</span>
       <div>
         <div className="text-text text-sm font-medium">ISS Position</div>
         <div className="text-text-muted text-xs">
@@ -190,7 +190,7 @@ export default function Astronomy({ lat, lon }) {
               className="text-left w-full"
             >
               <div className="flex items-center gap-2">
-                <span className="text-lg">\uD83C\uDF0C</span>
+                <span className="text-lg">{"🌌"}</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-text text-sm font-medium">NASA Picture of the Day</div>
                   <div className="text-text-muted text-xs truncate">{apod.title}</div>

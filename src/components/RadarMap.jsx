@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { getRadarFrames } from '../api'
 import 'leaflet/dist/leaflet.css'
@@ -19,8 +19,8 @@ function RadarOverlay({ frames, host, currentFrame }) {
     const frame = frames[currentFrame]
     if (!frame) return
 
-    const tileUrl = `${host}${frame.path}/256/{z}/{x}/{y}/6/1_1.png`
-    layerRef.current = L.tileLayer(tileUrl, { opacity: 0.65, zIndex: 10 })
+    const tileUrl = `${host}${frame.path}/512/{z}/{x}/{y}/6/1_1.png`
+    layerRef.current = L.tileLayer(tileUrl, { opacity: 0.65, zIndex: 10, tileSize: 512, zoomOffset: -1 })
     layerRef.current.addTo(map)
 
     return () => {
@@ -105,6 +105,16 @@ export default function RadarMap({ lat, lon }) {
                   currentFrame={currentFrame}
                 />
               )}
+              <CircleMarker
+                center={[lat, lon]}
+                radius={6}
+                pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.9, weight: 2 }}
+              />
+              <CircleMarker
+                center={[lat, lon]}
+                radius={14}
+                pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.15, weight: 1 }}
+              />
             </MapContainer>
           )}
         </div>

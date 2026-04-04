@@ -108,9 +108,9 @@ export default function SpaceWeather() {
 
         {/* NOAA Scales */}
         <div className="grid grid-cols-3 gap-2">
-          <ScaleCard label="Geomagnetic" icon="\uD83E\uDDF2" scale={data.geoStorm} />
-          <ScaleCard label="Solar Rad" icon="\u2622\uFE0F" scale={data.solarRadiation} />
-          <ScaleCard label="Radio" icon="\uD83D\uDCE1" scale={data.radioBlackout} />
+          <ScaleCard label="Geomagnetic" icon="🧲" scale={data.geoStorm} />
+          <ScaleCard label="Solar Rad" icon="☢️" scale={data.solarRadiation} />
+          <ScaleCard label="Radio" icon="📡" scale={data.radioBlackout} />
         </div>
 
         {/* Kp Chart Toggle */}

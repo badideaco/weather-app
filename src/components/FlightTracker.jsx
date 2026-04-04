@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { getNearbyFlights } from '../api'
 import 'leaflet/dist/leaflet.css'
@@ -110,17 +110,6 @@ export default function FlightTracker({ lat, lon }) {
             <div className="h-full flex items-center justify-center text-text-muted text-sm">
               Scroll to load flight data
             </div>
-          ) : loading && !flights ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : error ? (
-            <div className="h-full flex items-center justify-center text-text-muted text-sm p-4 text-center">
-              <div>
-                <p>Flight data temporarily unavailable</p>
-                <button onClick={fetchFlights} className="text-accent text-xs mt-2 underline">Retry</button>
-              </div>
-            </div>
           ) : (
             <MapContainer
               center={[lat, lon]}
@@ -140,7 +129,29 @@ export default function FlightTracker({ lat, lon }) {
               />
               <FlightMarkers flights={flights} />
               <MapCenter lat={lat} lon={lon} />
+              <CircleMarker
+                center={[lat, lon]}
+                radius={6}
+                pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.9, weight: 2 }}
+              />
+              <CircleMarker
+                center={[lat, lon]}
+                radius={14}
+                pathOptions={{ color: '#4fc3f7', fillColor: '#4fc3f7', fillOpacity: 0.15, weight: 1 }}
+              />
             </MapContainer>
+          )}
+          {/* Overlay status indicators */}
+          {visible && loading && !flights && (
+            <div className="absolute inset-0 flex items-center justify-center bg-bg/50 z-[1000] pointer-events-none">
+              <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {visible && error && !flights && (
+            <div className="absolute bottom-2 left-2 right-2 z-[1000] bg-surface/90 backdrop-blur rounded-lg px-3 py-2 text-center">
+              <span className="text-text-muted text-xs">Flight data unavailable</span>
+              <button onClick={fetchFlights} className="text-accent text-xs ml-2 underline">Retry</button>
+            </div>
           )}
         </div>
 
