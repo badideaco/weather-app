@@ -164,6 +164,7 @@ export async function getNearbyFlights(lat, lon) {
       icao24: a.hex,
       callsign: (a.flight || a.hex || '').trim(),
       type: a.t || '',
+      desc: a.desc || '',
       registration: a.r || '',
       lon: a.lon,
       lat: a.lat,
@@ -172,6 +173,9 @@ export async function getNearbyFlights(lat, lon) {
       heading: a.track,
       verticalRate: a.baro_rate || a.geom_rate || 0,
       onGround: a.alt_baro === 'ground',
+      military: a.dbFlags === 1,
+      category: a.category || '',
+      squawk: a.squawk || '',
     }))
 }
 

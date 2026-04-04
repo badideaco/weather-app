@@ -173,6 +173,34 @@ body {
   transition: opacity 0.3s ease;
 }
 
+/* ─── Dark Leaflet popups ─── */
+.flight-popup .leaflet-popup-content-wrapper {
+  background: rgba(17, 17, 40, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: #e8e8ec;
+}
+.flight-popup .leaflet-popup-tip {
+  background: rgba(17, 17, 40, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.flight-popup .leaflet-popup-close-button {
+  color: #8888a8 !important;
+  font-size: 18px !important;
+  padding: 4px 8px !important;
+}
+.flight-popup .leaflet-popup-close-button:hover {
+  color: #e8e8ec !important;
+}
+.dark-tooltip .leaflet-tooltip {
+  background: rgba(17, 17, 40, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e8e8ec;
+}
+
 /* ─── Safe area padding for PWA ─── */
 @supports (padding-top: env(safe-area-inset-top)) {
   .safe-top { padding-top: env(safe-area-inset-top); }
