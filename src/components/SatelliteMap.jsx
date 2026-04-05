@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, memo } from 'react'
 import { getSatelliteFrames } from '../api'
 import { formatTime } from '../timezone'
 
@@ -27,12 +27,32 @@ const REGIONS = [
   { id: 'conus', label: 'Full US', sector: 'CONUS' },
 ]
 
+const FRAME_MS = 120
+const DWELL_TICKS = 8
+
 function relativeLabel(unixSec) {
   const diffMin = Math.round((unixSec - Date.now() / 1000) / 60)
   if (Math.abs(diffMin) <= 1) return 'Now'
   if (diffMin < 0) return `${Math.abs(diffMin)}m ago`
   return `+${diffMin}m`
 }
+
+// Memoized so the 30-dot row doesn't re-diff every animation tick
+const FrameDots = memo(function FrameDots({ count, current }) {
+  return (
+    <div className="flex items-center mt-1 px-0.5 h-2">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="flex-1 flex justify-center">
+          <div className={`rounded-full transition-all duration-150 ${
+            i === current ? 'w-2 h-2 bg-accent' :
+            i === count - 1 ? 'w-1.5 h-1.5 bg-text' :
+            'w-1 h-1 bg-text-muted/30'
+          }`} />
+        </div>
+      ))}
+    </div>
+  )
+})
 
 export default function SatelliteMap({ lat, lon }) {
   const [region, setRegion] = useState('umv')
@@ -46,12 +66,16 @@ export default function SatelliteMap({ lat, lon }) {
   const [error, setError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
 
-  const intervalRef = useRef(null)
-  const dwellRef = useRef(0)
   const containerRef = useRef(null)
   const genRef = useRef(0)
+  // Retains HTMLImageElement refs so decoded pixel data + HTTP cache entries survive
+  // across animation loops. Without this, detached Image objects were GC'd after preload
+  // and each frame step triggered a fresh network/decode round-trip.
+  const imagesRef = useRef(new Map())
+  const rafRef = useRef(null)
 
-  // Fetch and preload frames when region/product changes
+  // Fetch frame URLs + preload each with img.decode() so frames are guaranteed
+  // paint-ready before playback starts (no main-thread decode jank mid-loop).
   useEffect(() => {
     let cancelled = false
     const gen = ++genRef.current
@@ -75,28 +99,41 @@ export default function SatelliteMap({ lat, lon }) {
           return
         }
 
-        // Preload all images
+        // Preload & decode, reusing images already in the ref map
+        const nextImages = new Map()
         let loaded = 0
-        await Promise.all(newFrames.map(f =>
-          new Promise(resolve => {
+        await Promise.all(newFrames.map(async f => {
+          const existing = imagesRef.current.get(f.url)
+          if (existing) {
+            nextImages.set(f.url, existing)
+          } else {
             const img = new Image()
-            img.onload = () => {
-              loaded++
-              if (!cancelled && gen === genRef.current && showLoading)
-                setProgress(Math.round(loaded / newFrames.length * 100))
-              resolve()
-            }
-            img.onerror = () => { loaded++; resolve() }
+            img.decoding = 'async'
             img.src = f.url
-          })
-        ))
+            try {
+              await img.decode()
+            } catch {
+              // Corrupt or unreachable frame — keep going; the DOM <img> will still try.
+            }
+            nextImages.set(f.url, img)
+          }
+          loaded++
+          if (!cancelled && gen === genRef.current && showLoading) {
+            setProgress(Math.round(loaded / newFrames.length * 100))
+          }
+        }))
 
         if (cancelled || gen !== genRef.current) return
+        // Swap in the new map — old refs (for frames that rolled off) become GC-eligible
+        imagesRef.current = nextImages
         setFrames(newFrames)
         if (showLoading) {
           setFrameIdx(newFrames.length - 1)
           setLoading(false)
           setPlaying(true)
+        } else {
+          // Background refresh — clamp index in case list shrank
+          setFrameIdx(idx => Math.min(idx, newFrames.length - 1))
         }
       } catch {
         if (!cancelled && gen === genRef.current && showLoading) {
@@ -111,26 +148,32 @@ export default function SatelliteMap({ lat, lon }) {
     return () => { cancelled = true; clearInterval(timer) }
   }, [region, product, retryKey])
 
-  // Animation loop with dwell on latest frame
+  // Animation loop — requestAnimationFrame with time accumulator. Drops frames
+  // gracefully if the main thread stalls, instead of queueing stale setInterval work.
   useEffect(() => {
-    if (!playing || !frames.length) { clearInterval(intervalRef.current); return }
+    if (!playing || !frames.length) return
 
-    const total = frames.length
-    const DWELL_TICKS = 8
-    dwellRef.current = 0
+    let lastTick = performance.now()
+    let dwellTicks = 0
 
-    intervalRef.current = setInterval(() => {
-      setFrameIdx(prev => {
-        if (prev === total - 1 && dwellRef.current < DWELL_TICKS) {
-          dwellRef.current++
-          return prev
-        }
-        dwellRef.current = 0
-        return (prev + 1) % total
-      })
-    }, 120)
+    const step = (now) => {
+      if (now - lastTick >= FRAME_MS) {
+        lastTick = now
+        setFrameIdx(prev => {
+          const total = frames.length
+          if (prev === total - 1 && dwellTicks < DWELL_TICKS) {
+            dwellTicks++
+            return prev
+          }
+          dwellTicks = 0
+          return (prev + 1) % total
+        })
+      }
+      rafRef.current = requestAnimationFrame(step)
+    }
 
-    return () => clearInterval(intervalRef.current)
+    rafRef.current = requestAnimationFrame(step)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
   }, [playing, frames])
 
   // Fullscreen
@@ -155,6 +198,8 @@ export default function SatelliteMap({ lat, lon }) {
   const currentFrame = frames[frameIdx]
   const frameTime = currentFrame ? formatTime(new Date(currentFrame.time * 1000)) : ''
   const relTime = currentFrame ? relativeLabel(currentFrame.time) : ''
+  const regionLabel = REGIONS.find(r => r.id === region)?.label
+  const productLabel = PRODUCTS.find(p => p.id === product)?.label
 
   return (
     <section className="mb-6">
@@ -175,7 +220,8 @@ export default function SatelliteMap({ lat, lon }) {
           ))}
         </div>
 
-        {/* Image viewer */}
+        {/* Image viewer — all frames rendered as stacked layers, current shown via opacity.
+            Once mounted & decoded, stepping frames is a pure compositor op (no re-decode). */}
         <div className={`relative bg-black ${fullscreen ? 'h-[calc(100%-148px)]' : 'h-[400px]'}`}>
           {loading ? (
             <div className="h-full flex flex-col items-center justify-center gap-3">
@@ -190,13 +236,19 @@ export default function SatelliteMap({ lat, lon }) {
               <span className="text-text-muted text-sm">{error}</span>
               <button onClick={() => setRetryKey(k => k + 1)} className="text-accent text-xs hover:underline">Retry</button>
             </div>
-          ) : currentFrame ? (
-            <img
-              src={currentFrame.url}
-              alt={`${REGIONS.find(r => r.id === region)?.label} ${PRODUCTS.find(p => p.id === product)?.label}`}
-              className="w-full h-full object-contain select-none"
-              draggable={false}
-            />
+          ) : frames.length > 0 ? (
+            frames.map((f, i) => (
+              <img
+                key={f.url}
+                src={f.url}
+                alt={i === frameIdx ? `${regionLabel} ${productLabel}` : ''}
+                aria-hidden={i !== frameIdx}
+                className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+                style={{ opacity: i === frameIdx ? 1 : 0 }}
+                decoding="async"
+                draggable={false}
+              />
+            ))
           ) : null}
         </div>
 
@@ -228,20 +280,10 @@ export default function SatelliteMap({ lat, lon }) {
             {frames.length > 0 && (
               <div className="flex-1 relative">
                 <input type="range" min={0} max={frames.length - 1} value={frameIdx}
-                  onChange={e => { setFrameIdx(parseInt(e.target.value)); setPlaying(false); dwellRef.current = 0 }}
+                  onChange={e => { setFrameIdx(parseInt(e.target.value)); setPlaying(false) }}
                   className="w-full accent-accent h-1 relative z-10"
                 />
-                <div className="flex items-center mt-1 px-0.5 h-2">
-                  {frames.map((_, i) => (
-                    <div key={i} className="flex-1 flex justify-center">
-                      <div className={`rounded-full transition-all duration-150 ${
-                        i === frameIdx ? 'w-2 h-2 bg-accent' :
-                        i === frames.length - 1 ? 'w-1.5 h-1.5 bg-text' :
-                        'w-1 h-1 bg-text-muted/30'
-                      }`} />
-                    </div>
-                  ))}
-                </div>
+                <FrameDots count={frames.length} current={frameIdx} />
               </div>
             )}
 
