@@ -3,9 +3,16 @@ import { getExtendedForecast } from '../api'
 import { TZ } from '../timezone'
 
 const WMO_EMOJI = {
-  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️',
-  51: '🌦️', 53: '🌧️', 55: '🌧️', 61: '🌧️', 63: '🌧️', 65: '🌧️',
-  71: '🌨️', 73: '🌨️', 75: '🌨️', 80: '🌧️', 81: '🌧️', 82: '🌧️',
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
+  45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌧️', 55: '🌧️',
+  56: '🌧️', 57: '🌧️',             // freezing drizzle
+  61: '🌧️', 63: '🌧️', 65: '🌧️',
+  66: '🌧️', 67: '🌧️',             // freezing rain
+  71: '🌨️', 73: '🌨️', 75: '🌨️',
+  77: '🌨️',                         // snow grains
+  80: '🌧️', 81: '🌧️', 82: '🌧️',
+  85: '🌨️', 86: '🌨️',             // snow showers
   95: '⛈️', 96: '⛈️', 99: '⛈️',
 }
 
@@ -63,7 +70,7 @@ export default function ExtendedForecast({ lat, lon }) {
                 {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ })}
               </span>
               <span className="text-base w-7 text-center flex-shrink-0">
-                {WMO_EMOJI[day.code] || '🌤️'}
+                {WMO_EMOJI[day.code] || '☁️'}
               </span>
               <span className="text-text-dim text-sm w-8 text-right flex-shrink-0 tabular-nums">{day.low}°</span>
               <div className="flex-1 h-2 bg-white/[0.04] rounded-full relative mx-1">
