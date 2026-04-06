@@ -7,7 +7,7 @@ const CACHE_TTL = 30 * 60 * 1000 // 30 min cache
 const PERSONALITY_KEY = 'stormscope-personality'
 
 const PERSONALITIES = [
-  { key: 'elmer', name: 'Elmer', emoji: '\u{1F474}', label: 'Old Man Weather', loading: 'Grumbling about the weather...' },
+  { key: 'elmer', name: 'Elmer', emoji: '\u{1F474}', label: "Elmer's Weather", loading: 'Grumbling about the weather...' },
   { key: 'wanda', name: 'Wanda', emoji: '\u{1F49C}', label: "Wanda's Weather", loading: 'Wanda is checking the vibes outside...' },
   { key: 'rachel', name: 'Rachel', emoji: '\u{1F484}', label: "Rachel's Forecast", loading: 'Rachel is, like, looking outside...' },
   { key: 'joan', name: 'Joan', emoji: '\u{1F9F6}', label: "Grandma Joan's Weather", loading: 'Grandma Joan is peeking out the window...' },
