@@ -13,6 +13,15 @@ function RadarOverlay({ frames, host, currentFrame }) {
   const layerRef = useRef(null)
   const prevUrlRef = useRef('')
 
+  // Create/destroy the tile layer only on mount/unmount (or when host changes)
+  useEffect(() => {
+    if (!map) return
+    return () => {
+      if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null; prevUrlRef.current = '' }
+    }
+  }, [map, host])
+
+  // Update the tile URL when the frame changes — reuses the existing layer
   useEffect(() => {
     if (!frames?.length || !map) return
     const frame = frames[currentFrame]
@@ -30,10 +39,6 @@ function RadarOverlay({ frames, host, currentFrame }) {
         zIndex: 10,
       })
       layerRef.current.addTo(map)
-    }
-
-    return () => {
-      if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null; prevUrlRef.current = '' }
     }
   }, [map, frames, host, currentFrame])
 

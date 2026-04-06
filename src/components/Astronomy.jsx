@@ -95,28 +95,16 @@ function getPlanetVisibility(lat, lon) {
 // ── ISS Position + Upcoming Passes ──
 function ISSSection({ lat, lon }) {
   const [iss, setIss] = useState(null)
-  const [passes, setPasses] = useState(null)
 
   useEffect(() => {
-    // Current position
     fetch('https://api.wheretheiss.at/v1/satellites/25544')
       .then(r => r.json())
-      .then(data => setIss({ lat: data.latitude, lon: data.longitude, alt: Math.round(data.altitude * 0.621371) }))
+      .then(data => {
+        const altMi = Math.round(data.altitude * 0.621371)
+        const distMi = (lat && lon) ? Math.round(haversine(lat, lon, data.latitude, data.longitude) * 0.621371) : null
+        setIss({ lat: data.latitude, lon: data.longitude, alt: altMi, distance: distMi })
+      })
       .catch(() => {})
-
-    // Visible passes (using N2YO API with demo - or fallback to position only)
-    // N2YO requires a key, so we'll calculate approximate overhead times
-    // For now, show the distance and next potential overhead
-    if (lat && lon) {
-      fetch('https://api.wheretheiss.at/v1/satellites/25544')
-        .then(r => r.json())
-        .then(data => {
-          const distKm = haversine(lat, lon, data.latitude, data.longitude)
-          const distMi = Math.round(distKm * 0.621371)
-          setIss(prev => prev ? { ...prev, distance: distMi } : null)
-        })
-        .catch(() => {})
-    }
   }, [lat, lon])
 
   if (!iss) return null

@@ -29,6 +29,7 @@ export default function EarthView() {
   const [progress, setProgress] = useState(0)
   const [fullscreen, setFullscreen] = useState(false)
   const [error, setError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   const intervalRef = useRef(null)
   const dwellRef = useRef(0)
@@ -92,7 +93,7 @@ export default function EarthView() {
       load() // silent refresh reuses same gen check
     }, refreshMs)
     return () => { cancelled = true; clearInterval(timer) }
-  }, [view])
+  }, [view, retryKey])
 
   // Animation loop
   useEffect(() => {
@@ -157,7 +158,7 @@ export default function EarthView() {
           ) : error ? (
             <div className="h-full flex flex-col items-center justify-center gap-3">
               <span className="text-text-muted text-sm">{error}</span>
-              <button onClick={() => setView(v => v)} className="text-accent text-xs hover:underline">Retry</button>
+              <button onClick={() => setRetryKey(k => k + 1)} className="text-accent text-xs hover:underline">Retry</button>
             </div>
           ) : frame ? (
             <img src={frame.url} alt={currentView?.desc} className="w-full h-full object-contain select-none" draggable={false} />

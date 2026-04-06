@@ -38,6 +38,15 @@ export default function WeatherBriefing({ observation, forecast, hourly, alerts,
   const fetchedRef = useRef(false)
   const currentPersonality = PERSONALITIES.find(p => p.key === personality) || PERSONALITIES[0]
 
+  // Reset fetchedRef when location changes so briefing re-fetches for new location
+  const prevLocationRef = useRef(locationName)
+  useEffect(() => {
+    if (locationName && locationName !== prevLocationRef.current) {
+      fetchedRef.current = false
+      prevLocationRef.current = locationName
+    }
+  }, [locationName])
+
   useEffect(() => {
     const cached = getCachedBriefing(personality)
     if (cached) { setBriefing(cached); return }

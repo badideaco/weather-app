@@ -202,7 +202,10 @@ export default function App() {
 
   const handleRefresh = () => {
     if (!location) return
-    localStorage.removeItem('stormscope-briefing')
+    // Clear all personality-specific briefing caches
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('stormscope-briefing')) localStorage.removeItem(key)
+    }
     fetchWeather(location.lat, location.lon)
   }
 
@@ -215,7 +218,10 @@ export default function App() {
   const handleSelectLocation = (loc) => {
     setLocation(loc)
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ lat: loc.lat, lon: loc.lon }))
-    localStorage.removeItem('stormscope-briefing') // Clear cached briefing for new location
+    // Clear all personality-specific briefing caches for new location
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('stormscope-briefing')) localStorage.removeItem(key)
+    }
     fetchWeather(loc.lat, loc.lon)
   }
 
