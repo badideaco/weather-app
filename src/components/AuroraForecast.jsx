@@ -87,17 +87,9 @@ export default function AuroraForecast() {
     return () => clearInterval(intervalRef.current)
   }, [playing, frames])
 
-  // Fullscreen
+  // Fullscreen — CSS-based (iOS Safari doesn't support requestFullscreen on divs)
   const toggleFullscreen = useCallback(() => {
-    if (!fullscreen) containerRef.current?.requestFullscreen?.() || containerRef.current?.webkitRequestFullscreen?.()
-    else document.exitFullscreen?.() || document.webkitExitFullscreen?.()
-  }, [fullscreen])
-
-  useEffect(() => {
-    const handler = () => setFullscreen(!!document.fullscreenElement)
-    document.addEventListener('fullscreenchange', handler)
-    document.addEventListener('webkitfullscreenchange', handler)
-    return () => { document.removeEventListener('fullscreenchange', handler); document.removeEventListener('webkitfullscreenchange', handler) }
+    setFullscreen(f => !f)
   }, [])
 
   const frame = frames[frameIdx]

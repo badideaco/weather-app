@@ -209,23 +209,9 @@ export default function RadarMap({ lat, lon, alerts }) {
     return () => clearInterval(intervalRef.current)
   }, [playing, radarData])
 
+  // Fullscreen — CSS-based (iOS Safari doesn't support requestFullscreen on divs)
   const toggleFullscreen = useCallback(() => {
-    if (!fullscreen) {
-      containerRef.current?.requestFullscreen?.() ||
-      containerRef.current?.webkitRequestFullscreen?.()
-    } else {
-      document.exitFullscreen?.() || document.webkitExitFullscreen?.()
-    }
-  }, [fullscreen])
-
-  useEffect(() => {
-    const handler = () => setFullscreen(!!document.fullscreenElement)
-    document.addEventListener('fullscreenchange', handler)
-    document.addEventListener('webkitfullscreenchange', handler)
-    return () => {
-      document.removeEventListener('fullscreenchange', handler)
-      document.removeEventListener('webkitfullscreenchange', handler)
-    }
+    setFullscreen(f => !f)
   }, [])
 
   const currentFrameData = radarData?.frames?.[currentFrame]
