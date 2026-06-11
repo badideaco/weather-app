@@ -125,7 +125,7 @@ function getSeenMilFlights() {
 }
 
 function sendMilNotification(f, tag) {
-  if (Notification.permission !== 'granted') return
+  if (!('Notification' in window) || Notification.permission !== 'granted') return
   const emoji = tag.label.includes('HELI') ? '🚁' : '✈️'
   const body = [
     f.type && `Aircraft: ${f.type}`,
@@ -134,14 +134,17 @@ function sendMilNotification(f, tag) {
     'Go outside and look up!',
   ].filter(Boolean).join('\n')
 
-  try {
-    new Notification(`${emoji} ${tag.label}: ${f.callsign || f.icao24}`, {
+  // Page-context `new Notification()` throws on mobile — notifications must
+  // go through the service worker registration
+  navigator.serviceWorker?.ready.then(reg => {
+    reg.showNotification(`${emoji} ${tag.label}: ${f.callsign || f.icao24}`, {
       body,
-      icon: '/favicon.svg',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       tag: `mil-${f.icao24}`,
       requireInteraction: true,
     })
-  } catch {}
+  }).catch(() => {})
 }
 
 export default function FlightTracker({ lat, lon }) {

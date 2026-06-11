@@ -93,26 +93,46 @@ function parseAlertPolygon(geometry) {
 }
 
 // ── NOAA NEXRAD Radar (via Iowa State Mesonet) ──
+// Uses timestamped archive layers (ridge::USCOMP-N0Q-YYYYMMDDHHMM) instead of
+// the relative-time layers (nexrad-n0q-mXXm). Relative layers re-point to newer
+// scans as wall-clock time advances, so cached tiles mix ages within a frame
+// and time labels drift. Timestamped URLs are immutable: cache-safe, and the
+// label always matches the imagery.
+
+const RADAR_FRAME_COUNT = 12
+const RADAR_STEP_MIN = 5
+
+function radarTimestamp(date) {
+  const p = n => String(n).padStart(2, '0')
+  return `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}${p(date.getUTCHours())}${p(date.getUTCMinutes())}`
+}
 
 export async function getRadarFrames() {
   const host = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0'
 
-  // Get actual radar composite timestamp for accurate time labels
-  let currentTime
+  // Latest composite valid time from IEM metadata (5-min grid)
+  let latest = null
   try {
     const meta = await fetchJSON('https://mesonet.agron.iastate.edu/json/tms.json')
     const n0q = meta.services?.find(s => s.id === 'ridge_uscomp_n0q')
-    currentTime = n0q ? new Date(n0q.utc_valid) : new Date()
-  } catch {
-    currentTime = new Date()
+    if (n0q) latest = new Date(n0q.utc_valid)
+  } catch { /* fall through to wall-clock estimate */ }
+  if (!latest || isNaN(latest.getTime())) {
+    // Composite generation lags a few minutes; snap down to the 5-min grid
+    // and back off one step so the newest frame actually exists
+    latest = new Date()
+    latest.setUTCSeconds(0, 0)
+    latest.setUTCMinutes(Math.floor(latest.getUTCMinutes() / RADAR_STEP_MIN) * RADAR_STEP_MIN - RADAR_STEP_MIN)
   }
 
-  // NEXRAD composite: 12 frames at 5-min intervals (55 minutes of history)
-  const offsets = [55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0]
-  const frames = offsets.map(offset => ({
-    time: Math.floor((currentTime.getTime() - offset * 60000) / 1000),
-    path: offset === 0 ? '/nexrad-n0q-900913' : `/nexrad-n0q-m${String(offset).padStart(2, '0')}m-900913`,
-  }))
+  const frames = []
+  for (let i = RADAR_FRAME_COUNT - 1; i >= 0; i--) {
+    const t = new Date(latest.getTime() - i * RADAR_STEP_MIN * 60000)
+    frames.push({
+      time: Math.floor(t.getTime() / 1000),
+      path: `/ridge::USCOMP-N0Q-${radarTimestamp(t)}`,
+    })
+  }
 
   return { host, frames }
 }

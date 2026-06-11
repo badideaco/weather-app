@@ -3,13 +3,37 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Inline plugin to stub satellite.js WASM runtime imports that use top-level await
+// (breaks Vite PWA service worker iife bundle). We only use the pure-JS SGP4 path.
+function stubSatelliteWasm() {
+  const WASM_RUNTIME = 'node_modules/satellite.js/dist/wasm/runtimes/index.js'
+  return {
+    name: 'stub-satellite-wasm',
+    load(id) {
+      if (id.includes(WASM_RUNTIME)) {
+        return 'export function createSingleThreadRuntime() { throw new Error("WASM not available") }\n' +
+               'export function createMultiThreadRuntime() { throw new Error("WASM not available") }\n'
+      }
+    },
+  }
+}
+
 export default defineConfig({
+  optimizeDeps: {
+    exclude: ['satellite.js'],
+  },
   plugins: [
+    stubSatelliteWasm(),
     react(),
     tailwindcss(),
     VitePWA({
+      // injectManifest so the SW can handle Web Push (generateSW cannot).
+      // Runtime caching now lives in src/sw.js.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'StormScope Weather',
         short_name: 'StormScope',
@@ -20,34 +44,14 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         icons: [
-          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' },
-          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' }
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }
         ]
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\.weather\.gov\//,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'nws-api', expiration: { maxEntries: 50, maxAgeSeconds: 300 } }
-          },
-          {
-            urlPattern: /^https:\/\/tilecache\.rainviewer\.com\//,
-            handler: 'CacheFirst',
-            options: { cacheName: 'radar-tiles', expiration: { maxEntries: 200, maxAgeSeconds: 600 } }
-          },
-          {
-            urlPattern: /^https:\/\/services\.swpc\.noaa\.gov\//,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'space-weather', expiration: { maxEntries: 20, maxAgeSeconds: 900 } }
-          },
-          {
-            urlPattern: /^https:\/\/[abc]\.basemaps\.cartocdn\.com\//,
-            handler: 'CacheFirst',
-            options: { cacheName: 'map-tiles', expiration: { maxEntries: 500, maxAgeSeconds: 86400 } }
-          }
-        ]
       }
     })
   ]

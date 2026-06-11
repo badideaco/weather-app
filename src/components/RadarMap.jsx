@@ -5,42 +5,62 @@ import { getRadarFrames } from '../api'
 import { formatTime, TZ } from '../timezone'
 import 'leaflet/dist/leaflet.css'
 
-// ── Radar tile overlay (single layer, swaps URL per frame) ──
-// Only ONE tile layer exists at a time to prevent Safari PWA memory crash.
-// Pre-loading all frames (15 layers × tiles) causes OOM on zoom out.
+// ── Radar tile overlays (one layer per frame, opacity toggle) ──
+// All frames mount as tile layers once; animation toggles opacity, never
+// refetching tiles. Frame URLs are timestamped (immutable), so repeat loops
+// come from cache. Memory stays bounded on iOS Safari (the old OOM driver)
+// via maxNativeZoom — the composite has no real detail past z8, so overzoom
+// upscales instead of fetching — plus keepBuffer 0.
+const RADAR_OPACITY = 0.65
+
 function RadarOverlay({ frames, host, currentFrame }) {
   const map = useMap()
-  const layerRef = useRef(null)
-  const prevUrlRef = useRef('')
+  const layersRef = useRef(new Map()) // path -> L.tileLayer
 
-  // Create/destroy the tile layer only on mount/unmount (or when host changes)
+  // Sync layers to the frame list: add new frames, drop expired ones.
+  // On the 5-min data refresh only ~1 layer changes; the rest stay warm.
+  useEffect(() => {
+    if (!map || !frames?.length) return
+    const layers = layersRef.current
+    const wanted = new Set(frames.map(f => f.path))
+
+    for (const [path, layer] of layers) {
+      if (!wanted.has(path)) { map.removeLayer(layer); layers.delete(path) }
+    }
+    for (const f of frames) {
+      if (!layers.has(f.path)) {
+        const layer = L.tileLayer(`${host}${f.path}/{z}/{x}/{y}.png`, {
+          opacity: 0,
+          zIndex: 10,
+          maxNativeZoom: 8,
+          keepBuffer: 0,
+          updateWhenZooming: false,
+          updateWhenIdle: true,
+        })
+        layer.addTo(map)
+        layers.set(f.path, layer)
+      }
+    }
+  }, [map, frames, host])
+
+  // Show only the active frame
+  useEffect(() => {
+    if (!map || !frames?.length) return
+    const active = frames[currentFrame]?.path
+    for (const [path, layer] of layersRef.current) {
+      layer.setOpacity(path === active ? RADAR_OPACITY : 0)
+    }
+  }, [map, frames, currentFrame])
+
+  // Remove all layers on unmount
   useEffect(() => {
     if (!map) return
+    const layers = layersRef.current
     return () => {
-      if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null; prevUrlRef.current = '' }
+      for (const layer of layers.values()) map.removeLayer(layer)
+      layers.clear()
     }
-  }, [map, host])
-
-  // Update the tile URL when the frame changes — reuses the existing layer
-  useEffect(() => {
-    if (!frames?.length || !map) return
-    const frame = frames[currentFrame]
-    if (!frame) return
-
-    const url = `${host}${frame.path}/{z}/{x}/{y}.png`
-    if (url === prevUrlRef.current) return
-    prevUrlRef.current = url
-
-    if (layerRef.current) {
-      layerRef.current.setUrl(url)
-    } else {
-      layerRef.current = L.tileLayer(url, {
-        opacity: 0.65,
-        zIndex: 10,
-      })
-      layerRef.current.addTo(map)
-    }
-  }, [map, frames, host, currentFrame])
+  }, [map])
 
   return null
 }
@@ -55,8 +75,10 @@ function LightningLayer() {
   useEffect(() => {
     if (!map) return
     let reconnectTimer = null
+    let disposed = false
 
     function connect() {
+      if (disposed) return
       try {
         const ws = new WebSocket('wss://ws1.blitzortung.org/')
         wsRef.current = ws
@@ -95,7 +117,7 @@ function LightningLayer() {
 
         ws.onerror = () => {}
         ws.onclose = () => {
-          reconnectTimer = setTimeout(connect, 5000)
+          if (!disposed) reconnectTimer = setTimeout(connect, 5000)
         }
       } catch {}
     }
@@ -108,6 +130,7 @@ function LightningLayer() {
     }, 30000)
 
     return () => {
+      disposed = true
       if (wsRef.current) wsRef.current.close()
       clearTimeout(reconnectTimer)
       clearInterval(cleanup)
@@ -153,12 +176,11 @@ function StormPolygons({ alerts }) {
     ))
 }
 
-// ── Relative time label ──
+// ── Relative time label (all frames are past observations) ──
 function relativeLabel(unixSec) {
-  const diffMin = Math.round((unixSec - Date.now() / 1000) / 60)
-  if (Math.abs(diffMin) <= 1) return 'Now'
-  if (diffMin < 0) return `${Math.abs(diffMin)}m ago`
-  return `+${diffMin}m`
+  const diffMin = Math.round((Date.now() / 1000 - unixSec) / 60)
+  if (diffMin <= 1) return 'Now'
+  return `${diffMin}m ago`
 }
 
 // ── Main component ──

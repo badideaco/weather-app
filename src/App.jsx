@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, createContext } from 'react'
 import { getNWSPoint, getForecast, getHourlyForecast, getCurrentObservation, getAlerts, getYesterdayWeather } from './api'
 import { formatTime } from './timezone'
+import { usePushNotifications } from './hooks/usePushNotifications'
 import CurrentWeather from './components/CurrentWeather'
 import HourlyForecast from './components/HourlyForecast'
 import DailyForecast from './components/DailyForecast'
@@ -27,8 +28,6 @@ import AuroraForecast from './components/AuroraForecast'
 import PollenForecast from './components/PollenForecast'
 
 const STORAGE_KEY = 'stormscope-location'
-const NOTIF_KEY = 'stormscope-notif'
-const SEEN_ALERTS_KEY = 'stormscope-seen-alerts'
 const ALERT_POLL_MS = 5 * 60 * 1000   // Check alerts every 5 min
 const REFRESH_MS = 10 * 60 * 1000     // Full refresh every 10 min
 
@@ -37,10 +36,6 @@ function getSavedLocation() {
     const saved = localStorage.getItem(STORAGE_KEY)
     return saved ? JSON.parse(saved) : null
   } catch { return null }
-}
-
-function getNotifEnabled() {
-  return localStorage.getItem(NOTIF_KEY) === 'true'
 }
 
 function RevealSection({ children, className = '' }) {
@@ -65,24 +60,6 @@ function RevealSection({ children, className = '' }) {
   )
 }
 
-function getSeenAlerts() {
-  try { return JSON.parse(localStorage.getItem(SEEN_ALERTS_KEY) || '[]') }
-  catch { return [] }
-}
-
-function sendAlertNotification(alert) {
-  if (Notification.permission !== 'granted') return
-  const severityIcon = { Extreme: '🚨', Severe: '⚠️', Moderate: '⚠️', Minor: 'ℹ️' }
-  try {
-    new Notification(`${severityIcon[alert.severity] || '⚠️'} ${alert.event}`, {
-      body: alert.headline || alert.event,
-      icon: '/favicon.svg',
-      tag: alert.event,
-      requireInteraction: alert.severity === 'Extreme' || alert.severity === 'Severe',
-    })
-  } catch { /* notifications may not be supported */ }
-}
-
 export default function App() {
   const [location, setLocation] = useState(getSavedLocation)
   const [locationName, setLocationName] = useState('')
@@ -95,11 +72,12 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [manualEntry, setManualEntry] = useState(false)
   const [zipInput, setZipInput] = useState('')
-  const [notifEnabled, setNotifEnabled] = useState(getNotifEnabled)
   const [yesterday, setYesterday] = useState(null)
-  const seenAlertsRef = useRef(getSeenAlerts())
   const alertPollRef = useRef(null)
   const refreshRef = useRef(null)
+  // OS-level alert notifications are delivered via Web Push from the
+  // weather-push Lambda (works with the PWA closed) — not from this page.
+  const push = usePushNotifications()
 
   const fetchWeather = useCallback(async (lat, lon) => {
     setLoading(true)
@@ -120,24 +98,7 @@ export default function App() {
       if (forecast.status === 'fulfilled') setWeather(forecast.value)
       if (hourlyData.status === 'fulfilled') setHourly(hourlyData.value)
       if (obs.status === 'fulfilled') setObservation(obs.value)
-      if (alertData.status === 'fulfilled') {
-        const newAlerts = alertData.value
-        setAlerts(newAlerts)
-        // Check for new alerts and send notifications
-        if (notifEnabled && newAlerts?.length) {
-          const seen = seenAlertsRef.current
-          for (const a of newAlerts) {
-            const key = `${a.event}|${a.headline}`
-            if (!seen.includes(key)) {
-              sendAlertNotification(a)
-              seen.push(key)
-            }
-          }
-          // Keep only last 50 seen alerts
-          seenAlertsRef.current = seen.slice(-50)
-          localStorage.setItem(SEEN_ALERTS_KEY, JSON.stringify(seenAlertsRef.current))
-        }
-      }
+      if (alertData.status === 'fulfilled') setAlerts(alertData.value)
 
       setLastUpdated(new Date())
     } catch (e) {
@@ -145,7 +106,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [notifEnabled])
+  }, [])
 
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -225,49 +186,22 @@ export default function App() {
     fetchWeather(loc.lat, loc.lon)
   }
 
-  // Toggle notifications
+  // Toggle push notifications (subscribe must run inside the tap — iOS requirement)
   const toggleNotifications = async () => {
-    if (notifEnabled) {
-      setNotifEnabled(false)
-      localStorage.setItem(NOTIF_KEY, 'false')
-      return
-    }
-    if (!('Notification' in window)) return
-    const perm = await Notification.requestPermission()
-    if (perm === 'granted') {
-      setNotifEnabled(true)
-      localStorage.setItem(NOTIF_KEY, 'true')
-      new Notification('StormScope Alerts Enabled', {
-        body: 'You\'ll be notified of severe weather alerts.',
-        icon: '/favicon.svg',
-      })
+    if (push.subscribed) {
+      await push.unsubscribe()
+    } else if (location) {
+      await push.subscribe(location.lat, location.lon)
     }
   }
 
   // Background alert polling (every 5 min) + full refresh (every 10 min)
+  // Keeps the in-app alert banner current; OS notifications come via push.
   useEffect(() => {
     if (!location) return
-    // Alert-only poll every 5 min
     alertPollRef.current = setInterval(async () => {
       try {
-        const newAlerts = await getAlerts(location.lat, location.lon)
-        if (newAlerts?.length) {
-          setAlerts(newAlerts)
-          if (notifEnabled) {
-            const seen = seenAlertsRef.current
-            for (const a of newAlerts) {
-              const key = `${a.event}|${a.headline}`
-              if (!seen.includes(key)) {
-                sendAlertNotification(a)
-                seen.push(key)
-              }
-            }
-            seenAlertsRef.current = seen.slice(-50)
-            localStorage.setItem(SEEN_ALERTS_KEY, JSON.stringify(seenAlertsRef.current))
-          }
-        } else {
-          setAlerts(newAlerts)
-        }
+        setAlerts(await getAlerts(location.lat, location.lon))
       } catch {}
     }, ALERT_POLL_MS)
     // Full weather refresh every 10 min
@@ -278,7 +212,7 @@ export default function App() {
       clearInterval(alertPollRef.current)
       clearInterval(refreshRef.current)
     }
-  }, [location, notifEnabled, fetchWeather])
+  }, [location, fetchWeather])
 
   // Manual ZIP entry screen
   if (manualEntry && !location) {
@@ -354,15 +288,16 @@ export default function App() {
                 {formatTime(lastUpdated)}
               </span>
             )}
-            {'Notification' in (typeof window !== 'undefined' ? window : {}) && (
+            {push.supported && (
               <button
                 onClick={toggleNotifications}
-                className={`p-1.5 rounded-lg transition-colors ${notifEnabled ? 'text-accent bg-accent/10' : 'text-text-muted hover:bg-surface'}`}
-                title={notifEnabled ? 'Alert notifications on' : 'Enable alert notifications'}
+                disabled={push.loading}
+                className={`p-1.5 rounded-lg transition-colors ${push.subscribed ? 'text-accent bg-accent/10' : 'text-text-muted hover:bg-surface'} ${push.loading ? 'opacity-50' : ''}`}
+                title={push.subscribed ? 'Alert notifications on' : 'Enable alert notifications'}
               >
                 <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
-                  {notifEnabled && <circle cx="18" cy="5" r="3" fill="#4fc3f7" stroke="none"/>}
+                  {push.subscribed && <circle cx="18" cy="5" r="3" fill="#4fc3f7" stroke="none"/>}
                 </svg>
               </button>
             )}
