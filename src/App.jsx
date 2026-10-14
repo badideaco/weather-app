@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, createContext } from 'react'
-import { getNWSPoint, getForecast, getHourlyForecast, getCurrentObservation, getAlerts, getYesterdayWeather } from './api'
+import { getNWSPoint, getForecast, getHourlyForecast, getCurrentObservation, getAlerts, getYesterdayWeather, getCurrentUV } from './api'
 import { formatTime } from './timezone'
 import { usePushNotifications } from './hooks/usePushNotifications'
 import CurrentWeather from './components/CurrentWeather'
@@ -30,6 +30,7 @@ import PollenForecast from './components/PollenForecast'
 const STORAGE_KEY = 'stormscope-location'
 const ALERT_POLL_MS = 5 * 60 * 1000   // Check alerts every 5 min
 const REFRESH_MS = 10 * 60 * 1000     // Full refresh every 10 min
+const RESUME_STALE_MS = 5 * 60 * 1000 // Refresh on reopen if data is older than this
 
 function getSavedLocation() {
   try {
@@ -73,19 +74,36 @@ export default function App() {
   const [manualEntry, setManualEntry] = useState(false)
   const [zipInput, setZipInput] = useState('')
   const [yesterday, setYesterday] = useState(null)
+  const [uvIndex, setUvIndex] = useState(null)
+  // Bumped after every refresh attempt. Sections that load their own data
+  // (radar, outlooks, air quality, space weather, briefing...) refetch on it;
+  // most of them used to load once per session.
+  const [refreshKey, setRefreshKey] = useState(0)
   const alertPollRef = useRef(null)
   const refreshRef = useRef(null)
+  const lastFetchRef = useRef(0)
+  const inFlightRef = useRef(null) // "lat,lon" of the refresh in progress
+  const requestSeqRef = useRef(0)  // only the newest refresh may apply its results
   // OS-level alert notifications are delivered via Web Push from the
   // weather-push Lambda (works with the PWA closed) — not from this page.
   const push = usePushNotifications()
 
   const fetchWeather = useCallback(async (lat, lon) => {
+    // When iOS unfreezes the PWA, the overdue 10-min timer and the reopen
+    // handler can fire together: one refresh per location at a time
+    const key = `${lat},${lon}`
+    if (inFlightRef.current === key) return
+    inFlightRef.current = key
+    const seq = ++requestSeqRef.current
+    const isLatest = () => seq === requestSeqRef.current // a location switch mid-refresh supersedes it
     setLoading(true)
-    setError(null)
+    lastFetchRef.current = Date.now()
     try {
       const point = await getNWSPoint(lat, lon)
-      // Fetch yesterday's data in parallel (non-blocking)
-      getYesterdayWeather(lat, lon).then(setYesterday).catch(() => {})
+      if (!isLatest()) return
+      // Non-blocking extras
+      getYesterdayWeather(lat, lon).then(v => { if (isLatest()) setYesterday(v) }).catch(() => {})
+      getCurrentUV(lat, lon).then(v => { if (isLatest()) setUvIndex(v) }).catch(() => { if (isLatest()) setUvIndex(null) })
       setLocationName(`${point.city}, ${point.state}`)
 
       const [forecast, hourlyData, obs, alertData] = await Promise.allSettled([
@@ -94,17 +112,28 @@ export default function App() {
         getCurrentObservation(point.stationsUrl),
         getAlerts(lat, lon),
       ])
+      if (!isLatest()) return
 
       if (forecast.status === 'fulfilled') setWeather(forecast.value)
       if (hourlyData.status === 'fulfilled') setHourly(hourlyData.value)
       if (obs.status === 'fulfilled') setObservation(obs.value)
       if (alertData.status === 'fulfilled') setAlerts(alertData.value)
 
-      setLastUpdated(new Date())
+      // Only claim fresh data if the core data actually refreshed
+      if (forecast.status === 'fulfilled' || obs.status === 'fulfilled') {
+        setLastUpdated(new Date())
+        setError(null)
+      } else {
+        setError('Could not reach the National Weather Service')
+      }
     } catch (e) {
-      setError(e.message)
+      if (isLatest()) setError(e.message || 'Could not reach the National Weather Service')
     } finally {
-      setLoading(false)
+      if (inFlightRef.current === key) inFlightRef.current = null
+      if (isLatest()) {
+        setLoading(false)
+        setRefreshKey(k => k + 1)
+      }
     }
   }, [])
 
@@ -119,6 +148,7 @@ export default function App() {
         const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude }
         setLocation(loc)
         localStorage.setItem(STORAGE_KEY, JSON.stringify(loc))
+        if (push.subscribed) push.updateLocation(loc.lat, loc.lon)
         fetchWeather(loc.lat, loc.lon)
       },
       () => {
@@ -132,7 +162,7 @@ export default function App() {
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
     )
-  }, [fetchWeather])
+  }, [fetchWeather, push])
 
   useEffect(() => {
     if (location) {
@@ -154,6 +184,7 @@ export default function App() {
       setLocation(loc)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loc))
       setManualEntry(false)
+      if (push.subscribed) push.updateLocation(loc.lat, loc.lon)
       fetchWeather(loc.lat, loc.lon)
     } catch (e) {
       setError('Could not find that ZIP code. Try again.')
@@ -179,6 +210,8 @@ export default function App() {
   const handleSelectLocation = (loc) => {
     setLocation(loc)
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ lat: loc.lat, lon: loc.lon }))
+    // Push alerts follow the location being viewed
+    if (push.subscribed) push.updateLocation(loc.lat, loc.lon)
     // Clear all personality-specific briefing caches for new location
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith('stormscope-briefing')) localStorage.removeItem(key)
@@ -200,17 +233,39 @@ export default function App() {
   useEffect(() => {
     if (!location) return
     alertPollRef.current = setInterval(async () => {
+      if (document.hidden) return
       try {
         setAlerts(await getAlerts(location.lat, location.lon))
       } catch {}
     }, ALERT_POLL_MS)
     // Full weather refresh every 10 min
     refreshRef.current = setInterval(() => {
+      if (document.hidden) return
+      if (Date.now() - lastFetchRef.current < REFRESH_MS - 30000) return // a reopen refresh just ran
       fetchWeather(location.lat, location.lon)
     }, REFRESH_MS)
     return () => {
       clearInterval(alertPollRef.current)
       clearInterval(refreshRef.current)
+    }
+  }, [location, fetchWeather])
+
+  // Reopening the app (home-screen PWA brought back from the background, or a
+  // restored tab) refreshes everything if the data is stale. iOS suspends
+  // timers in the background, so without this a PWA opened hours later showed
+  // hours-old conditions, radar and alerts until the next 10-min tick.
+  useEffect(() => {
+    if (!location) return
+    const maybeRefresh = () => {
+      if (document.hidden) return
+      if (Date.now() - lastFetchRef.current > RESUME_STALE_MS) fetchWeather(location.lat, location.lon)
+    }
+    const onPageShow = (e) => { if (e.persisted) maybeRefresh() }
+    document.addEventListener('visibilitychange', maybeRefresh)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      document.removeEventListener('visibilitychange', maybeRefresh)
+      window.removeEventListener('pageshow', onPageShow)
     }
   }, [location, fetchWeather])
 
@@ -284,7 +339,10 @@ export default function App() {
           />
           <div className="flex items-center gap-2">
             {lastUpdated && (
-              <span className="text-text-muted text-xs hidden sm:block">
+              <span
+                className={`text-[11px] sm:text-xs tabular-nums ${error ? 'text-amber-400' : 'text-text-muted'}`}
+                title={error ? `Refresh failed: ${error}` : 'Last updated'}
+              >
                 {formatTime(lastUpdated)}
               </span>
             )}
@@ -319,19 +377,30 @@ export default function App() {
           </div>
         )}
 
+        {/* A failed refresh keeps the last data on screen, but says so */}
+        {error && weather && !loading && (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-900/20 px-4 py-2.5 flex items-center justify-between gap-3">
+            <p className="text-amber-300 text-xs">
+              Couldn&apos;t refresh{lastUpdated ? `. Showing data from ${formatTime(lastUpdated)}` : ''}.
+            </p>
+            {/* Retry the data only: handleRefresh also clears the AI briefing cache */}
+            <button onClick={() => location && fetchWeather(location.lat, location.lon)} className="text-accent text-xs underline flex-shrink-0">Retry</button>
+          </div>
+        )}
+
         {alerts && alerts.length > 0 && <WeatherAlerts alerts={alerts} />}
 
-        <WeatherBriefing observation={observation} forecast={weather} hourly={hourly} alerts={alerts} locationName={locationName} />
+        <WeatherBriefing observation={observation} forecast={weather} hourly={hourly} alerts={alerts} locationName={locationName} refreshKey={refreshKey} />
 
         {(observation || currentPeriod) && (
           <CurrentWeather observation={observation} period={currentPeriod} forecast={weather} yesterday={yesterday} />
         )}
 
-        {location && <RadarMap lat={location.lat} lon={location.lon} alerts={alerts} />}
+        {location && <RadarMap lat={location.lat} lon={location.lon} alerts={alerts} refreshKey={refreshKey} />}
 
         {location && (
           <RevealSection>
-            <MinutelyPrecip lat={location.lat} lon={location.lon} />
+            <MinutelyPrecip lat={location.lat} lon={location.lon} refreshKey={refreshKey} />
           </RevealSection>
         )}
 
@@ -341,13 +410,13 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <WindRose direction={observation.windDirection} speed={observation.windSpeed} gust={observation.windGust} />
               <div className="space-y-4">
-                <UVTimer uvIndex={currentPeriod?.isDaytime ? 5 : 0} />
+                <UVTimer uvIndex={uvIndex} />
                 <ClothingRec
                   temp={observation.temperature}
                   wind={observation.windSpeed}
                   humidity={observation.humidity}
                   conditions={observation.description}
-                  uvIndex={currentPeriod?.isDaytime ? 5 : 0}
+                  uvIndex={uvIndex}
                 />
               </div>
             </div>
@@ -358,7 +427,7 @@ export default function App() {
 
         {weather && <RevealSection><DailyForecast periods={weather} /></RevealSection>}
 
-        {location && <RevealSection><ExtendedForecast lat={location.lat} lon={location.lon} /></RevealSection>}
+        {location && <RevealSection><ExtendedForecast lat={location.lat} lon={location.lon} refreshKey={refreshKey} /></RevealSection>}
 
         {hourly && <RevealSection><ForecastCharts hourly={hourly} /></RevealSection>}
 
@@ -366,24 +435,25 @@ export default function App() {
 
         <RevealSection><EarthView /></RevealSection>
 
-        {location && <RevealSection><SPCOutlook lat={location.lat} lon={location.lon} /></RevealSection>}
+        {location && <RevealSection><SPCOutlook lat={location.lat} lon={location.lon} refreshKey={refreshKey} /></RevealSection>}
 
-        {location && <RevealSection><AirQuality lat={location.lat} lon={location.lon} /></RevealSection>}
+        {location && <RevealSection><AirQuality lat={location.lat} lon={location.lon} refreshKey={refreshKey} /></RevealSection>}
 
-        {location && <RevealSection><PollenForecast lat={location.lat} lon={location.lon} /></RevealSection>}
+        {location && <RevealSection><PollenForecast lat={location.lat} lon={location.lon} refreshKey={refreshKey} /></RevealSection>}
 
-        <RevealSection><SpaceWeather /></RevealSection>
+        <RevealSection><SpaceWeather refreshKey={refreshKey} /></RevealSection>
 
         <RevealSection><AuroraForecast /></RevealSection>
 
-        {location && <RevealSection><Astronomy lat={location.lat} lon={location.lon} /></RevealSection>}
+        {location && <RevealSection><Astronomy lat={location.lat} lon={location.lon} refreshKey={refreshKey} /></RevealSection>}
 
         {location && <RevealSection><WeatherHistory lat={location.lat} lon={location.lon} /></RevealSection>}
 
         {location && <RevealSection><FlightTracker lat={location.lat} lon={location.lon} /></RevealSection>}
 
         <footer className="mt-8 pt-4 border-t border-white/[0.04] text-center text-text-muted text-xs">
-          <p>Data from NWS, NOAA, Iowa State Mesonet, EUMETSAT, NASA EPIC, NASA GIBS</p>
+          <p>Data from NWS, NOAA (SPC, SWPC, GOES), Iowa State Mesonet, Open-Meteo, Blitzortung, EUMETSAT, NASA, adsb.lol</p>
+          <p className="mt-1">Map tiles &copy; Esri, HERE, Garmin, OpenStreetMap</p>
           <p className="mt-1 text-text-muted/60">StormScope Weather</p>
         </footer>
       </main>

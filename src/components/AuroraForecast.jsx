@@ -1,13 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { getAuroraFrames } from '../api'
-import { formatTime } from '../timezone'
-
-function relativeLabel(unixSec) {
-  const diffMin = Math.round((unixSec - Date.now() / 1000) / 60)
-  if (Math.abs(diffMin) <= 1) return 'Now'
-  if (diffMin < 0) return `${Math.abs(diffMin)}m ago`
-  return `+${diffMin}m`
-}
+import { formatTime, relativeLabel } from '../timezone'
 
 export default function AuroraForecast() {
   const [hemisphere, setHemisphere] = useState('north')

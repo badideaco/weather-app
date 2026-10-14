@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { MapContainer, Polygon, CircleMarker, Tooltip } from 'react-leaflet'
 import DarkBasemap from './DarkBasemap'
-import { getSPCOutlook } from '../api'
+import { getSPCOutlook, pointInPolygons } from '../api'
+import SectionNotice from './SectionNotice'
 import 'leaflet/dist/leaflet.css'
 
 const RISK_INFO = {
@@ -21,16 +22,17 @@ function riskFromLabel(label) {
   return { key: upper, label: label, color: '#888888', level: 0 }
 }
 
-export default function SPCOutlook({ lat, lon }) {
+export default function SPCOutlook({ lat, lon, refreshKey }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     getSPCOutlook()
-      .then(setData)
-      .catch(() => {})
+      .then(d => { setData(d); setFailed(false) })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
-  }, [])
+  }, [refreshKey])
 
   if (loading) return (
     <section className="mb-6">
@@ -39,11 +41,19 @@ export default function SPCOutlook({ lat, lon }) {
     </section>
   )
 
-  if (!data?.length) return null
+  if (!data) return failed ? <SectionNotice title="Severe Weather Outlook" source="the Storm Prediction Center" /> : null
+  if (!data.length) return (
+    <SectionNotice title="Severe Weather Outlook">No thunderstorm or severe risk areas in today&apos;s SPC outlook.</SectionNotice>
+  )
 
-  // Determine local risk level
-  const risks = data.map(d => riskFromLabel(d.risk)).filter(r => r.level > 0)
-  const maxRisk = risks.length > 0 ? risks.reduce((a, b) => a.level > b.level ? a : b) : null
+  // Risk at the user's location (highest category whose area contains the
+  // point; general thunder counts) vs the highest risk anywhere in the US.
+  const highest = list => list.reduce((a, b) => (b.level > a.level ? b : a), list[0])
+  const localRisks = data.filter(d => pointInPolygons(lat, lon, d.polygon)).map(d => riskFromLabel(d.risk))
+  const localRisk = localRisks.length ? highest(localRisks) : null
+  const severeRisks = data.map(d => riskFromLabel(d.risk)).filter(r => r.level > 0)
+  const nationalRisk = severeRisks.length ? highest(severeRisks) : null
+  const showNational = nationalRisk && (!localRisk || nationalRisk.level > localRisk.level)
 
   return (
     <section className="mb-6">
@@ -53,13 +63,20 @@ export default function SPCOutlook({ lat, lon }) {
       </div>
       <div className="glass-card overflow-hidden">
         {/* Risk legend */}
-        {maxRisk && (
-          <div className="px-4 py-2 border-b border-white/[0.04] flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: maxRisk.color }} />
-            <span className="text-text text-sm font-medium">{maxRisk.label}</span>
-            <span className="text-text-muted text-xs">in your area</span>
-          </div>
-        )}
+        <div className="px-4 py-2 border-b border-white/[0.04] flex items-center gap-2 flex-wrap">
+          {localRisk ? (
+            <>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: localRisk.color }} />
+              <span className="text-text text-sm font-medium">{localRisk.label}</span>
+              <span className="text-text-muted text-xs">at your location</span>
+            </>
+          ) : (
+            <span className="text-text-dim text-sm">No severe risk at your location</span>
+          )}
+          {showNational && (
+            <span className="text-text-muted text-xs ml-auto">Highest today: {nationalRisk.label}</span>
+          )}
+        </div>
 
         <div className="h-[280px]">
           <MapContainer
@@ -75,7 +92,6 @@ export default function SPCOutlook({ lat, lon }) {
             <DarkBasemap />
             {data.map((area, i) => {
               const risk = riskFromLabel(area.risk)
-              if (area.polygon.length < 3) return null
               return (
                 <Polygon key={i}
                   positions={area.polygon}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getPollenForecast } from '../api'
+import SectionNotice from './SectionNotice'
 
 function pollenLevel(value) {
   if (value == null || value <= 0) return { label: 'None', color: '#555570' }
@@ -18,17 +19,19 @@ const POLLEN_TYPES = [
   { key: 'olive', label: 'Olive', icon: '🫒' },
 ]
 
-export default function PollenForecast({ lat, lon }) {
+export default function PollenForecast({ lat, lon, refreshKey }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     getPollenForecast(lat, lon)
-      .then(setData)
-      .catch(() => {})
+      .then(d => { setData(d); setFailed(false) })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
-  }, [lat, lon])
+  }, [lat, lon, refreshKey])
 
+  if (!loading && !data && failed) return <SectionNotice title="Pollen & Allergies" source="Open-Meteo" />
   if (loading || !data) return null
 
   const active = POLLEN_TYPES.filter(t => data[t.key] != null && data[t.key] > 0)

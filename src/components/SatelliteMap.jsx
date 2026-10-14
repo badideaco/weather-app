@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, memo } from 'react'
 import { getSatelliteFrames } from '../api'
-import { formatTime } from '../timezone'
+import { formatTime, relativeLabel } from '../timezone'
 
 const PRODUCTS = [
   { id: 'geocolor', label: 'GeoColor', product: 'GEOCOLOR' },
@@ -29,13 +29,6 @@ const REGIONS = [
 
 const FRAME_MS = 120
 const DWELL_TICKS = 8
-
-function relativeLabel(unixSec) {
-  const diffMin = Math.round((unixSec - Date.now() / 1000) / 60)
-  if (Math.abs(diffMin) <= 1) return 'Now'
-  if (diffMin < 0) return `${Math.abs(diffMin)}m ago`
-  return `+${diffMin}m`
-}
 
 // Memoized so the 30-dot row doesn't re-diff every animation tick
 const FrameDots = memo(function FrameDots({ count, current }) {

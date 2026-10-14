@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { getSpaceWeather } from '../api'
+import { TZ } from '../timezone'
+import SectionNotice from './SectionNotice'
 
 function kpColor(kp) {
   if (kp >= 7) return '#ef5350'
@@ -30,30 +32,31 @@ function scaleColor(level) {
 
 function ScaleCard({ label, icon, scale }) {
   const level = scale?.Scale || '0'
-  const text = scale?.Text || 'None'
+  const text = scale ? (scale.Text || 'None') : 'Unavailable'
   return (
     <div className="bg-white/[0.03] rounded-xl p-3 text-center border border-white/[0.03]">
       <div className="text-lg mb-1">{icon}</div>
       <div className="text-text-muted text-[10px] uppercase tracking-wider mb-1">{label}</div>
       <div className={`text-lg font-bold ${scaleColor(level)}`}>
-        {parseInt(level) > 0 ? `${label.charAt(0)}${level}` : 'None'}
+        {!scale ? '--' : parseInt(level) > 0 ? `${label.charAt(0)}${level}` : 'None'}
       </div>
       <div className="text-text-dim text-[10px] mt-0.5">{text}</div>
     </div>
   )
 }
 
-export default function SpaceWeather() {
+export default function SpaceWeather({ refreshKey }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const [showChart, setShowChart] = useState(false)
 
   useEffect(() => {
     getSpaceWeather()
-      .then(setData)
-      .catch(() => {})
+      .then(d => { setData(d); setFailed(false) })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
-  }, [])
+  }, [refreshKey])
 
   if (loading) {
     return (
@@ -64,10 +67,14 @@ export default function SpaceWeather() {
     )
   }
 
-  if (!data) return null
+  if (!data) return failed ? <SectionNotice title="Space Weather" source="NOAA SWPC" /> : null
 
+  const kp = data.kp ?? 0
+  // Kp is 3-hourly, so 24 points span 3 days: label weekday + hour.
+  // time_tag has no zone suffix but is UTC.
   const kpChartData = data.kpHistory.map(h => ({
-    time: new Date(h.time).toLocaleTimeString('en-US', { hour: 'numeric', timeZone: 'America/Chicago' }),
+    time: new Date(/Z|[+-]\d\d:?\d\d$/.test(h.time) ? h.time : `${h.time.replace(' ', 'T')}Z`)
+      .toLocaleString('en-US', { weekday: 'short', hour: 'numeric', timeZone: TZ }),
     kp: h.kp,
   }))
 
@@ -88,27 +95,30 @@ export default function SpaceWeather() {
               <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
               <circle
                 cx="50" cy="50" r="40" fill="none"
-                stroke={kpColor(data.kp)}
+                stroke={kpColor(kp)}
                 strokeWidth="8"
                 strokeLinecap="round" filter="url(#kpGlow)"
-                strokeDasharray={`${(data.kp / 9) * 251.3} 251.3`}
+                strokeDasharray={`${(kp / 9) * 251.3} 251.3`}
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-2xl font-bold" style={{ color: kpColor(data.kp) }}>
-                {data.kp.toFixed(0)}
+              <span className="text-2xl font-bold" style={{ color: kpColor(kp) }}>
+                {data.kp != null ? data.kp.toFixed(0) : '--'}
               </span>
             </div>
           </div>
           <div>
             <div className="text-text font-semibold">Kp Index</div>
-            <div className="text-sm" style={{ color: kpColor(data.kp) }}>{kpLabel(data.kp)}</div>
+            <div className="text-sm" style={{ color: kpColor(kp) }}>{data.kp != null ? kpLabel(kp) : 'Unavailable'}</div>
             <div className="text-text-muted text-xs mt-1">
-              Solar Wind: {Math.round(data.solarWindSpeed)} km/s
+              Solar Wind: {data.solarWindSpeed != null ? `${Math.round(data.solarWindSpeed)} km/s` : '--'}
             </div>
-            <div className="text-text-muted text-xs">
-              Density: {data.solarWindDensity.toFixed(1)} p/cm³
-            </div>
+            {data.bz != null && (
+              <div className="text-text-muted text-xs" title="Interplanetary magnetic field. Southward (negative) Bz lets the solar wind couple to Earth's field and drives aurora.">
+                Bz: <span className={data.bz <= -5 ? 'text-green-400' : ''}>{data.bz > 0 ? '+' : ''}{data.bz} nT</span>
+                {' '}({data.bz < 0 ? 'south' : 'north'}{data.bz <= -5 ? ', favors aurora' : ''})
+              </div>
+            )}
           </div>
         </div>
 
@@ -162,7 +172,7 @@ export default function SpaceWeather() {
         )}
 
         {/* Aurora visibility hint */}
-        {data.kp >= 5 && (
+        {kp >= 5 && (
           <div className="bg-green-900/20 border border-green-500/30 rounded-xl px-3 py-2 text-green-300 text-xs">
             Aurora may be visible at mid-latitudes! Look north after dark.
           </div>

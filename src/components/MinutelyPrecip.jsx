@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react'
 import { getMinutelyPrecip } from '../api'
+import SectionNotice from './SectionNotice'
 
-export default function MinutelyPrecip({ lat, lon }) {
+export default function MinutelyPrecip({ lat, lon, refreshKey }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     getMinutelyPrecip(lat, lon)
-      .then(setData)
-      .catch(() => {})
+      .then(d => { setData(d); setFailed(false) })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
-  }, [lat, lon])
+  }, [lat, lon, refreshKey])
 
+  if (!loading && !data && failed) return <SectionNotice>Rain timing (Open-Meteo) couldn&apos;t load. Will retry on the next refresh.</SectionNotice>
   if (loading || !data?.length) return null
 
   // Find next rain start/stop
@@ -48,7 +51,7 @@ export default function MinutelyPrecip({ lat, lon }) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">{"🌧️"}</span>
-            <h3 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">Next Hour Precipitation</h3>
+            <h3 className="text-text-muted text-[11px] font-medium uppercase tracking-[0.08em]">Precipitation · Next 4 Hours</h3>
           </div>
           {statusMsg && <span className={`text-xs font-medium ${statusColor}`}>{statusMsg}</span>}
         </div>

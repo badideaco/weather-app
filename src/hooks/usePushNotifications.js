@@ -72,6 +72,24 @@ export function usePushNotifications() {
     return false
   }, [supported])
 
+  // Move an existing subscription to a new location (the server upserts by
+  // endpoint). Without this, alerts kept following the old location until the
+  // next app open.
+  const updateLocation = useCallback(async (lat, lon) => {
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (!sub) return
+      await fetch(`${PUSH_API_BASE}/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${PUSH_AUTH_TOKEN}` },
+        body: JSON.stringify({ subscription: sub.toJSON(), lat, lon }),
+      })
+    } catch (e) {
+      console.warn('Push location update failed:', e.message)
+    }
+  }, [])
+
   const unsubscribe = useCallback(async () => {
     try {
       const reg = await navigator.serviceWorker.ready
@@ -90,7 +108,7 @@ export function usePushNotifications() {
     }
   }, [])
 
-  return { subscribed, supported, loading, subscribe, unsubscribe }
+  return { subscribed, supported, loading, subscribe, unsubscribe, updateLocation }
 }
 
 function getStoredLocation() {

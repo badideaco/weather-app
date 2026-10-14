@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import SectionNotice from './SectionNotice'
 
 function aqiColor(aqi) {
   if (aqi <= 50) return '#22c55e'   // Good
@@ -40,16 +41,18 @@ function PollutantBar({ label, value, unit, max }) {
   )
 }
 
-export default function AirQuality({ lat, lon }) {
+export default function AirQuality({ lat, lon, refreshKey }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone&timezone=auto`)
-      .then(r => r.json())
-      .then(d => { setData(d.current); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [lat, lon])
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
+      .then(d => { if (!d.current) throw new Error('no data'); setData(d.current); setFailed(false) })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false))
+  }, [lat, lon, refreshKey])
 
   if (loading) return (
     <section className="mb-6">
@@ -58,7 +61,7 @@ export default function AirQuality({ lat, lon }) {
     </section>
   )
 
-  if (!data) return null
+  if (!data) return failed ? <SectionNotice title="Air Quality" source="Open-Meteo" /> : null
 
   const aqi = data.us_aqi
   const color = aqiColor(aqi)

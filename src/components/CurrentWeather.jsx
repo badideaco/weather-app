@@ -1,4 +1,5 @@
 import { degreesToCardinal } from '../api'
+import { relativeLabel, TZ } from '../timezone'
 
 const conditionEmoji = {
   'Sunny': '\u2600\uFE0F', 'Mostly Sunny': '\uD83C\uDF24\uFE0F', 'Partly Sunny': '\u26C5',
@@ -46,13 +47,16 @@ function dewpointComfort(dp) {
   return { text: 'Dry', color: '#8888a8' }
 }
 
-function pressureTrend(current, yesterday) {
-  if (current == null || yesterday == null) return null
-  const diff = parseFloat(current) - yesterday * 0.02953 // hPa to inHg
-  if (diff > 0.06) return { text: 'Rising rapidly', icon: '↑↑', color: '#22c55e' }
-  if (diff > 0.02) return { text: 'Rising', icon: '↑', color: '#66bb6a' }
-  if (diff < -0.06) return { text: 'Falling rapidly', icon: '↓↓', color: '#ef4444' }
-  if (diff < -0.02) return { text: 'Falling', icon: '↓', color: '#f97316' }
+// 3-hour change at the same station, in inHg. ~1 hPa (0.03") is within the
+// daily pressure tide; ~3.4 hPa (0.10") in 3 h is a fast change. The old
+// version compared NWS sea-level pressure with Open-Meteo's unreduced
+// surface_pressure, so it read "Rising rapidly" anywhere inland.
+function pressureTrend(diff) {
+  if (diff == null) return null
+  if (diff >= 0.10) return { text: 'Rising rapidly', icon: '↑↑', color: '#22c55e' }
+  if (diff >= 0.03) return { text: 'Rising', icon: '↑', color: '#66bb6a' }
+  if (diff <= -0.10) return { text: 'Falling rapidly', icon: '↓↓', color: '#ef4444' }
+  if (diff <= -0.03) return { text: 'Falling', icon: '↓', color: '#f97316' }
   return { text: 'Steady', icon: '→', color: '#8888a8' }
 }
 
@@ -61,6 +65,12 @@ export default function CurrentWeather({ observation, period, forecast, yesterda
   const desc = observation?.description || period?.shortForecast || ''
   const feelsLike = observation?.heatIndex || observation?.windChill
 
+  // After dark the next daytime period is tomorrow's: label its high, and don't
+  // compare it with yesterday's. Compare dates, not isDaytime: between
+  // midnight and ~6 AM the first period is "Overnight" but the high is today's.
+  const dayKey = d => d.toLocaleDateString('en-CA', { timeZone: TZ })
+  const firstDay = forecast?.slice(0, 4).find(p => p.isDaytime)
+  const highIsTomorrow = firstDay?.startTime ? dayKey(new Date(firstDay.startTime)) !== dayKey(new Date()) : false
   let high = null, low = null
   if (forecast) {
     for (const p of forecast.slice(0, 4)) {
@@ -70,8 +80,13 @@ export default function CurrentWeather({ observation, period, forecast, yesterda
   }
 
   const dpComfort = dewpointComfort(observation?.dewpoint)
-  const pTrend = pressureTrend(observation?.pressure, yesterday?.avgPressure)
-  const tempDiff = yesterday?.high != null && high != null ? high - yesterday.high : null
+  const pTrend = pressureTrend(observation?.pressureChange3h)
+  const tempDiff = !highIsTomorrow && yesterday?.high != null && high != null ? high - yesterday.high : null
+
+  // Which station reported, and how long ago (hourly airport reports can lag)
+  const obsTime = observation?.timestamp ? new Date(observation.timestamp) : null
+  const obsAgeMin = obsTime ? (Date.now() - obsTime) / 60000 : null
+  const obsStale = obsAgeMin != null && obsAgeMin > 90
 
   return (
     <section className="mt-6 mb-6">
@@ -86,11 +101,17 @@ export default function CurrentWeather({ observation, period, forecast, yesterda
           {temp != null ? `${temp}°` : '--'}
         </div>
         <div className="text-text-dim text-lg mt-3 font-light">{desc}</div>
+        {observation?.stationId && obsTime && (
+          <div className={`text-[11px] mt-1 ${obsStale ? 'text-amber-400/80' : 'text-text-muted'}`} title={observation.stationName || ''}>
+            {observation.stationId} report · {relativeLabel(obsTime.getTime() / 1000).toLowerCase()}
+            {obsStale && ' (no recent report)'}
+          </div>
+        )}
         <div className="flex items-center justify-center gap-4 mt-2.5 text-sm flex-wrap">
           {feelsLike != null && feelsLike !== temp && (
             <span className="text-text-muted text-xs">Feels like {feelsLike}°</span>
           )}
-          {high != null && <span className="text-text/80 text-sm">H: {high}°</span>}
+          {high != null && <span className="text-text/80 text-sm">{highIsTomorrow ? 'Tomorrow H' : 'H'}: {high}°</span>}
           {low != null && <span className="text-text-dim text-sm">L: {low}°</span>}
           {tempDiff != null && tempDiff !== 0 && (
             <span className={`text-xs ${tempDiff > 0 ? 'text-amber-400/80' : 'text-blue-400/80'}`}>

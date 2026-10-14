@@ -152,18 +152,22 @@ export default function FlightTracker({ lat, lon }) {
   const [flights, setFlights] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [visible, setVisible] = useState(false)
+  const [visible, setVisible] = useState(false)   // has been on screen (render the map)
+  const [inView, setInView] = useState(false)     // on screen right now (poll)
+  const [pageVisible, setPageVisible] = useState(() => !document.hidden)
   const [milAlerts, setMilAlerts] = useState(getMilAlertEnabled)
   const sectionRef = useRef(null)
   const fetchedRef = useRef(false)
   const seenMilRef = useRef(getSeenMilFlights())
 
-  // Only fetch when section becomes visible
+  // Track whether the section is on screen (it used to latch on forever, so
+  // the 15 s poll ran all session once you had scrolled past it once)
   useEffect(() => {
     const el = sectionRef.current
     if (!el) return
     const obs = new IntersectionObserver(
       ([entry]) => {
+        setInView(entry.isIntersecting)
         if (entry.isIntersecting && !fetchedRef.current) {
           setVisible(true)
           fetchedRef.current = true
@@ -173,6 +177,12 @@ export default function FlightTracker({ lat, lon }) {
     )
     obs.observe(el)
     return () => obs.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const onVisibility = () => setPageVisible(!document.hidden)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
   const fetchFlights = useCallback(() => {
@@ -204,16 +214,14 @@ export default function FlightTracker({ lat, lon }) {
       .finally(() => setLoading(false))
   }, [lat, lon, milAlerts])
 
+  // Fetch on entering view, then every 15 s while on screen and the app is
+  // in the foreground
   useEffect(() => {
-    if (visible) fetchFlights()
-  }, [visible, fetchFlights])
-
-  // Auto-refresh every 15 seconds when visible
-  useEffect(() => {
-    if (!visible) return
+    if (!inView || !pageVisible) return
+    fetchFlights()
     const interval = setInterval(fetchFlights, 15000)
     return () => clearInterval(interval)
-  }, [visible, fetchFlights])
+  }, [inView, pageVisible, fetchFlights])
 
   // Background military scan (even when not scrolled to section)
   useEffect(() => {
@@ -230,8 +238,9 @@ export default function FlightTracker({ lat, lon }) {
         sendMilNotification(f, getFlightTag(f))
       })
     }).catch(() => {})
-    // Scan every 60 seconds in background
+    // Scan every 60 seconds while the app is open (skipped when hidden)
     const bgScan = setInterval(() => {
+      if (document.hidden) return
       getNearbyFlights(lat, lon).then(data => {
         if (!data?.length) return
         data.filter(f => !f.onGround && getFlightTag(f)).forEach(f => {
@@ -258,10 +267,12 @@ export default function FlightTracker({ lat, lon }) {
     if (perm === 'granted') {
       setMilAlerts(true)
       localStorage.setItem(MIL_ALERT_KEY, 'true')
-      new Notification('🛩️ Military Aircraft Alerts Enabled', {
+      // Via the service worker: page-context `new Notification()` doesn't
+      // exist on iOS and throws on Android Chrome
+      navigator.serviceWorker?.ready.then(reg => reg.showNotification('🛩️ Military Aircraft Alerts Enabled', {
         body: 'You\'ll be notified when military aircraft or helicopters are nearby.',
-        icon: '/favicon.svg',
-      })
+        icon: '/icon-192.png',
+      })).catch(() => {})
     }
   }
 

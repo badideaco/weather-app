@@ -29,12 +29,15 @@ export default function WeatherAlerts({ alerts }) {
     <section className="mt-4 mb-6 space-y-2">
       {sorted.map((alert, i) => {
         const colors = severityColors[alert.severity] || severityColors.Unknown
-        const isOpen = expanded === i
+        // Keyed by alert id: the 5-min poll can reorder the list, and an index
+        // key would expand a different alert than the one tapped
+        const key = alert.id || `${alert.event}-${i}`
+        const isOpen = expanded === key
         return (
-          <div key={i} className={`rounded-xl border ${colors} overflow-hidden`}>
+          <div key={key} className={`rounded-xl border ${colors} overflow-hidden`}>
             <button
               className="w-full px-4 py-3 flex items-start gap-2 text-left"
-              onClick={() => setExpanded(isOpen ? null : i)}
+              onClick={() => setExpanded(isOpen ? null : key)}
             >
               <span className="text-lg flex-shrink-0 mt-0.5">
                 {severityEmoji[alert.severity] || '\u26A0\uFE0F'}

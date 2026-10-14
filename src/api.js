@@ -38,29 +38,93 @@ export async function getHourlyForecast(url) {
   return data.properties.periods.slice(0, 48)
 }
 
+// Current conditions come from the station's recent report history (one
+// request, ~6 KB gzipped), not /observations/latest: /latest lagged the newest
+// report, and the 5-minute ASOS reports flip between "Mostly Clear" and
+// "Thunderstorms" minute to minute (KMKC, Oct 2026). Nearest stations are
+// tried in order; the first with a report under OBS_MAX_AGE_MIN wins.
+const OBS_STATIONS_TRIED = 3
+const OBS_MAX_AGE_MIN = 90
+const OBS_WX_WINDOW_MIN = 15   // lookback for the most significant weather
+const OBS_FIELD_WINDOW_MIN = 30 // lookback for a field the newest report lacks
+
+function weatherRank(desc) {
+  if (!desc) return -1
+  if (/thunder|tornado|funnel|hail/i.test(desc)) return 2
+  if (/rain|drizzle|shower|snow|sleet|freezing|ice pellets/i.test(desc)) return 1
+  return 0
+}
+
 export async function getCurrentObservation(stationsUrl) {
   const stations = await fetchJSON(stationsUrl, NWS_HEADERS)
-  const stationId = stations.features?.[0]?.properties?.stationIdentifier
-  if (!stationId) throw new Error('No nearby station found')
-  const obs = await fetchJSON(
-    `https://api.weather.gov/stations/${stationId}/observations/latest`,
-    NWS_HEADERS
-  )
-  const p = obs.properties
+  const candidates = (stations.features || [])
+    .slice(0, OBS_STATIONS_TRIED)
+    .map(f => ({ id: f.properties?.stationIdentifier, name: f.properties?.name }))
+    .filter(s => s.id)
+  if (!candidates.length) throw new Error('No nearby station found')
+
+  // 3.5 h of history also covers the 3-hour pressure tendency. Rounded down to
+  // 10 min so the URL repeats and the SW / NWS CDN caches can reuse it.
+  const startMs = Math.floor((Date.now() - 3.5 * 3600e3) / 600e3) * 600e3
+  const start = new Date(startMs).toISOString().replace(/\.\d{3}Z$/, 'Z')
+  let best = null
+  for (const station of candidates) {
+    let reports
+    try {
+      const data = await fetchJSON(
+        `https://api.weather.gov/stations/${station.id}/observations?start=${start}`,
+        NWS_HEADERS
+      )
+      reports = (data.features || []).map(f => f.properties).filter(p => p?.timestamp) // newest first
+    } catch { continue }
+    const latest = reports.find(p => p.temperature?.value != null)
+    if (!latest) continue
+    const ageMin = (Date.now() - new Date(latest.timestamp)) / 60000
+    if (!best || ageMin < best.ageMin) best = { station, reports, latest, ageMin }
+    if (ageMin <= OBS_MAX_AGE_MIN) break
+  }
+  if (!best) throw new Error('No recent observation')
+
+  const { station, reports, latest } = best
+  const latestMs = new Date(latest.timestamp).getTime()
+  const within = (p, min) => latestMs - new Date(p.timestamp).getTime() <= min * 60000
+  const field = (key) => reports.find(p => within(p, OBS_FIELD_WINDOW_MIN) && p[key]?.value != null)?.[key]?.value ?? null
+
+  // Description: the most significant weather reported in the last 15 min
+  const recent = reports.filter(p => within(p, OBS_WX_WINDOW_MIN) && p.textDescription)
+  const topRank = Math.max(-1, ...recent.map(p => weatherRank(p.textDescription)))
+  const description = recent.find(p => weatherRank(p.textDescription) === topRank)?.textDescription || null
+
+  // Pressure tendency: same station, ~3 h apart (the standard tendency window)
+  // Pressure from a report at most 30 min older than the newest (the shown value
+  // must be current, not 3 h old)
+  const pNow = reports.find(p => p.barometricPressure?.value != null && within(p, OBS_FIELD_WINDOW_MIN))
+  let pressureChange3h = null
+  if (pNow) {
+    const target = new Date(pNow.timestamp).getTime() - 3 * 3600e3
+    const then = reports
+      .filter(p => p.barometricPressure?.value != null && Math.abs(new Date(p.timestamp) - target) <= 30 * 60000)
+      .sort((a, b) => Math.abs(new Date(a.timestamp) - target) - Math.abs(new Date(b.timestamp) - target))[0]
+    if (then) pressureChange3h = (pNow.barometricPressure.value - then.barometricPressure.value) * 0.00029530
+  }
+
   return {
-    temperature: celsiusToF(p.temperature?.value),
-    dewpoint: celsiusToF(p.dewpoint?.value),
-    humidity: round(p.relativeHumidity?.value),
-    windSpeed: kphToMph(p.windSpeed?.value),
-    windDirection: p.windDirection?.value,
-    windGust: kphToMph(p.windGust?.value),
-    pressure: pascalToInHg(p.barometricPressure?.value),
-    visibility: metersToMiles(p.visibility?.value),
-    heatIndex: celsiusToF(p.heatIndex?.value),
-    windChill: celsiusToF(p.windChill?.value),
-    description: p.textDescription,
-    icon: p.icon,
-    timestamp: p.timestamp,
+    temperature: celsiusToF(latest.temperature?.value),
+    dewpoint: celsiusToF(field('dewpoint')),
+    humidity: round(field('relativeHumidity')),
+    windSpeed: kphToMph(field('windSpeed')),
+    windDirection: field('windDirection'),
+    windGust: kphToMph(latest.windGust?.value),
+    pressure: pascalToInHg(pNow?.barometricPressure?.value),
+    pressureChange3h,
+    visibility: metersToMiles(field('visibility')),
+    heatIndex: celsiusToF(latest.heatIndex?.value),
+    windChill: celsiusToF(latest.windChill?.value),
+    description,
+    icon: latest.icon,
+    timestamp: latest.timestamp,
+    stationId: station.id,
+    stationName: station.name,
   }
 }
 
@@ -70,6 +134,7 @@ export async function getAlerts(lat, lon) {
     NWS_HEADERS
   )
   return data.features.map(f => ({
+    id: f.properties.id || f.id,
     event: f.properties.event,
     severity: f.properties.severity,
     urgency: f.properties.urgency,
@@ -78,18 +143,62 @@ export async function getAlerts(lat, lon) {
     instruction: f.properties.instruction,
     expires: f.properties.expires,
     senderName: f.properties.senderName,
-    polygon: parseAlertPolygon(f.geometry),
+    polygon: toLeafletPolygons(f.geometry),
   }))
 }
 
-function parseAlertPolygon(geometry) {
+// GeoJSON Polygon/MultiPolygon ([lon, lat]) → Leaflet multi-polygon: an array
+// of polygons, each an array of rings of [lat, lon]. Keeps every part and hole
+// (the old parser kept only the first part, dropping e.g. 2 of SPC's 3
+// thunderstorm areas). L.polygon accepts this nesting directly.
+function toLeafletPolygons(geometry) {
   if (!geometry?.coordinates) return []
-  try {
-    // GeoJSON coordinates are [lon, lat], Leaflet needs [lat, lon]
-    const coords = geometry.type === 'Polygon' ? geometry.coordinates[0] :
-                   geometry.type === 'MultiPolygon' ? geometry.coordinates[0][0] : []
-    return coords.map(c => [c[1], c[0]])
-  } catch { return [] }
+  const polys = geometry.type === 'Polygon' ? [geometry.coordinates]
+    : geometry.type === 'MultiPolygon' ? geometry.coordinates : []
+  return polys.map(rings => rings.map(ring => ring.map(c => [c[1], c[0]])))
+}
+
+function inRing(lat, lon, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [yi, xi] = ring[i], [yj, xj] = ring[j]
+    if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+// Is the point inside a toLeafletPolygons() shape (outer ring, not in a hole)?
+export function pointInPolygons(lat, lon, polygons) {
+  return (polygons || []).some(rings =>
+    rings.length > 0 && inRing(lat, lon, rings[0]) && !rings.slice(1).some(h => inRing(lat, lon, h)))
+}
+
+// ── Storm-based warnings near the user (for the radar) ──
+// NWS alerts?point= only returns warnings that cover the user's exact spot.
+// IEM's feed has every active storm-based warning polygon in the US in ~20 KB.
+const WARNING_TYPES = {
+  TO: 'Tornado Warning',
+  SV: 'Severe Thunderstorm Warning',
+  EW: 'Extreme Wind Warning',
+  FF: 'Flash Flood Warning',
+  SQ: 'Snow Squall Warning',
+}
+
+export async function getStormWarnings() {
+  const data = await fetchJSON('https://mesonet.agron.iastate.edu/geojson/sbw.geojson')
+  return (data.features || [])
+    .filter(f => f.properties?.significance === 'W' && WARNING_TYPES[f.properties.phenomena])
+    .map(f => {
+      const p = f.properties
+      return {
+        id: `${p.wfo}-${p.phenomena}-${p.eventid}-${p.year}`,
+        type: p.phenomena,
+        name: WARNING_TYPES[p.phenomena],
+        expires: p.expire || p.polygon_end,
+        polygon: toLeafletPolygons(f.geometry),
+      }
+    })
+    .filter(w => w.polygon.length)
 }
 
 // ── NOAA NEXRAD Radar (via Iowa State Mesonet) ──
@@ -139,43 +248,43 @@ export async function getRadarFrames() {
 
 // ── NOAA Space Weather ──
 
+// Feeds load independently: one dead feed must not blank the section (in Oct
+// 2026 products/solar-wind/plasma-7-day.json went 404 and, inside a
+// Promise.all, took Kp and the NOAA scales down with it).
 export async function getSpaceWeather() {
-  const [kpData, scalesData, solarWind] = await Promise.all([
-    fetchJSON('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json'),
-    fetchJSON('https://services.swpc.noaa.gov/products/noaa-scales.json'),
-    fetchJSON('https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json'),
+  const swpc = 'https://services.swpc.noaa.gov'
+  const [kpRes, scalesRes, speedRes, magRes] = await Promise.allSettled([
+    fetchJSON(`${swpc}/products/noaa-planetary-k-index.json`),
+    fetchJSON(`${swpc}/products/noaa-scales.json`),
+    fetchJSON(`${swpc}/products/summary/solar-wind-speed.json`),
+    fetchJSON(`${swpc}/products/summary/solar-wind-mag-field.json`),
   ])
+  const ok = r => (r.status === 'fulfilled' ? r.value : null)
+  const first = v => (Array.isArray(v) ? v[0] : v)
+  const num = v => (v != null && Number.isFinite(Number(v)) ? Number(v) : null)
 
-  // Kp index - last entry (skip header row)
-  const kpRows = kpData.slice(1)
-  const latestKp = kpRows[kpRows.length - 1]
-  const kpHistory = kpRows.slice(-24).map(r => ({
-    time: r[0],
-    kp: parseFloat(r[1]),
-  }))
+  // Kp: SWPC moved this product from header + row arrays to objects
+  // ({time_tag, Kp}) in 2026. Accept both; the header row parses to NaN.
+  const kpRaw = ok(kpRes)
+  const kpRows = (Array.isArray(kpRaw) ? kpRaw : [])
+    .map(r => (Array.isArray(r) ? { time: r[0], kp: num(r[1]) } : { time: r?.time_tag, kp: num(r?.Kp ?? r?.kp) }))
+    .filter(r => r.time && r.kp != null)
 
-  // NOAA scales (current conditions)
-  const scales = scalesData[0] || {}
+  const scales = ok(scalesRes)?.[0] || null
+  const speed = first(ok(speedRes))
+  const mag = first(ok(magRes))
 
-  // Solar wind plasma - last entry (skip header)
-  const windRows = solarWind.slice(1).filter(r => r[1] !== null && r[1] !== '-999.9')
-  const latestWind = windRows[windRows.length - 1]
-  const windHistory = windRows.slice(-72).map(r => ({
-    time: r[0],
-    density: parseFloat(r[1]),
-    speed: parseFloat(r[2]),
-    temperature: parseFloat(r[3]),
-  }))
+  if (!kpRows.length && !scales && !speed && !mag) throw new Error('Space weather feeds unavailable')
 
   return {
-    kp: parseFloat(latestKp?.[1]) || 0,
-    kpHistory,
-    geoStorm: scales['G'] || { Scale: '0', Text: 'None' },
-    solarRadiation: scales['S'] || { Scale: '0', Text: 'None' },
-    radioBlackout: scales['R'] || { Scale: '0', Text: 'None' },
-    solarWindSpeed: parseFloat(latestWind?.[2]) || 0,
-    solarWindDensity: parseFloat(latestWind?.[1]) || 0,
-    windHistory,
+    kp: kpRows.length ? kpRows[kpRows.length - 1].kp : null,
+    kpHistory: kpRows.slice(-24),
+    geoStorm: scales?.G || null,
+    solarRadiation: scales?.S || null,
+    radioBlackout: scales?.R || null,
+    solarWindSpeed: num(speed?.proton_speed),
+    bz: num(mag?.bz_gsm), // southward (negative) Bz is what drives aurora
+    bt: num(mag?.bt),
   }
 }
 
@@ -210,15 +319,56 @@ export async function getNearbyFlights(lat, lon) {
 
 // ── NASA APOD ──
 
+// NASA's shared DEMO_KEY allows ~30 requests/hour and 50/day per IP, and a
+// household (or a carrier NAT) shares one IP. So: cache in localStorage by
+// date (APOD changes once a day), retry at most hourly after a failure (the
+// backoff survives app restarts), and never retry straight into a 429.
+// Undated requests returned 500 in Oct 2026 while dated ones worked, so ask
+// for today's date (APOD runs on US Eastern time) and fall back one day.
+const APOD_CACHE_KEY = 'stormscope-apod'
+const APOD_RETRY_MS = 60 * 60 * 1000
+
+function readApodCache() {
+  try { return JSON.parse(localStorage.getItem(APOD_CACHE_KEY) || '{}') } catch { return {} }
+}
+function writeApodCache(v) {
+  try { localStorage.setItem(APOD_CACHE_KEY, JSON.stringify(v)) } catch { /* storage full or blocked */ }
+}
+
 export async function getAPOD() {
-  const data = await fetchJSON('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY')
-  return {
-    title: data.title,
-    url: data.url,
-    hdurl: data.hdurl,
-    explanation: data.explanation,
-    mediaType: data.media_type,
-    date: data.date,
+  const day = offset => new Date(Date.now() - offset * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const today = day(0)
+  const cache = readApodCache()
+  const recent = t => t && Date.now() - t < APOD_RETRY_MS
+  if (cache.data && (cache.data.date === today || recent(cache.fetchedAt))) return cache.data
+  if (recent(cache.failedAt)) {
+    if (cache.data) return cache.data
+    throw new Error('APOD: waiting before retrying')
+  }
+
+  const url = d => `https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&date=${d}`
+  try {
+    let data
+    try {
+      data = await fetchJSON(url(today))
+    } catch (e) {
+      if (String(e.message).startsWith('429')) throw e // rate limited: don't spend another
+      data = await fetchJSON(url(day(1))) // today's not posted yet
+    }
+    const apod = {
+      title: data.title,
+      url: data.url,
+      hdurl: data.hdurl,
+      explanation: data.explanation,
+      mediaType: data.media_type,
+      date: data.date,
+    }
+    writeApodCache({ data: apod, fetchedAt: Date.now() })
+    return apod
+  } catch (e) {
+    writeApodCache({ ...cache, failedAt: Date.now() })
+    if (cache.data) return cache.data // last known picture beats an error
+    throw e
   }
 }
 
@@ -254,19 +404,28 @@ export async function getExtendedForecast(lat, lon) {
   }))
 }
 
+// ── Open-Meteo: Current UV index ──
+
+export async function getCurrentUV(lat, lon) {
+  const data = await fetchJSON(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=uv_index&timezone=auto`
+  )
+  const uv = data.current?.uv_index
+  return uv != null ? Math.round(uv) : null
+}
+
 // ── Open-Meteo: Yesterday's Weather (temp trend) ──
+// (Pressure trend now comes from the station's own 3-hour history.)
 
 export async function getYesterdayWeather(lat, lon) {
   const y = new Date(); y.setDate(y.getDate() - 1)
   const yStr = y.toISOString().split('T')[0]
   const data = await fetchJSON(
-    `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yStr}&end_date=${yStr}&daily=temperature_2m_max,temperature_2m_min&hourly=surface_pressure&temperature_unit=fahrenheit&timezone=auto`
+    `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${yStr}&end_date=${yStr}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`
   )
-  const pressures = (data.hourly?.surface_pressure || []).filter(p => p != null)
   return {
     high: data.daily?.temperature_2m_max?.[0] != null ? Math.round(data.daily.temperature_2m_max[0]) : null,
     low: data.daily?.temperature_2m_min?.[0] != null ? Math.round(data.daily.temperature_2m_min[0]) : null,
-    avgPressure: pressures.length ? pressures.reduce((a, b) => a + b, 0) / pressures.length : null,
   }
 }
 
@@ -290,18 +449,15 @@ export async function getPollenForecast(lat, lon) {
 
 // ── SPC Convective Outlook ──
 
+// Throws on failure so the section can say so; [] means no risk areas today.
 export async function getSPCOutlook() {
-  try {
-    const data = await fetchJSON('https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson')
-    return data.features?.map(f => ({
-      risk: f.properties?.LABEL || f.properties?.LABEL2 || 'Unknown',
-      fill: f.properties?.fill || '#888',
-      stroke: f.properties?.stroke || '#888',
-      polygon: f.geometry?.coordinates?.[0]?.map(ring =>
-        Array.isArray(ring[0]) ? ring.map(c => [c[1], c[0]]) : [[ring[1], ring[0]]]
-      ).flat() || [],
-    })).filter(f => f.polygon.length > 0) || []
-  } catch { return [] }
+  const data = await fetchJSON('https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson')
+  return (data.features || []).map(f => ({
+    risk: f.properties?.LABEL || f.properties?.LABEL2 || 'Unknown',
+    fill: f.properties?.fill || '#888',
+    stroke: f.properties?.stroke || '#888',
+    polygon: toLeafletPolygons(f.geometry),
+  })).filter(f => f.polygon.length > 0)
 }
 
 // ── NOAA GOES Satellite Imagery ──

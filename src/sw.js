@@ -12,10 +12,6 @@ clientsClaim()
 cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 
-// Tile requests are no-cors (opaque, status 0) — CacheableResponsePlugin is
-// required or CacheFirst silently caches nothing.
-const opaqueOk = new CacheableResponsePlugin({ statuses: [0, 200] })
-
 registerRoute(
   ({ url }) => url.origin === 'https://api.weather.gov',
   new NetworkFirst({
@@ -24,12 +20,17 @@ registerRoute(
   })
 )
 
-// Radar tiles: timestamped URLs are immutable, so CacheFirst is safe
+// Radar tiles: timestamped URLs are immutable, so CacheFirst is safe. Tiles
+// are requested with crossOrigin (RadarMap), so only real 200s are cached: a
+// 503 for a frame IEM hasn't generated yet must not be stored as a tile.
 registerRoute(
   ({ url }) => url.origin === 'https://mesonet.agron.iastate.edu' && url.pathname.includes('/cache/tile.py/'),
   new CacheFirst({
-    cacheName: 'radar-tiles',
-    plugins: [opaqueOk, new ExpirationPlugin({ maxEntries: 600, maxAgeSeconds: 3600 })],
+    cacheName: 'radar-tiles-v2',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [200] }),
+      new ExpirationPlugin({ maxEntries: 600, maxAgeSeconds: 3600, purgeOnQuotaError: true }),
+    ],
   })
 )
 
@@ -54,9 +55,11 @@ registerRoute(
   })
 )
 
-// 'map-tiles' held CARTO tiles, which turned into "API KEY REQUIRED" images
+// Retired caches: 'map-tiles' held CARTO tiles, which turned into "API KEY
+// REQUIRED" images; 'radar-tiles' held opaque (no-cors) responses, which
+// can't answer the CORS tile requests made now.
 self.addEventListener('activate', (event) => {
-  event.waitUntil(caches.delete('map-tiles'))
+  event.waitUntil(Promise.all(['map-tiles', 'radar-tiles'].map(name => caches.delete(name))))
 })
 
 // ── Web Push ──

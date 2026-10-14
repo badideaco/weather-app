@@ -93,19 +93,27 @@ function getPlanetVisibility(lat, lon) {
 }
 
 // ── ISS Position + Upcoming Passes ──
-function ISSSection({ lat, lon }) {
+// The ISS covers ~300 mi a minute, so refresh every minute while the app is
+// in the foreground (it was fetched once per session)
+function ISSSection({ lat, lon, refreshKey }) {
   const [iss, setIss] = useState(null)
 
   useEffect(() => {
-    fetch('https://api.wheretheiss.at/v1/satellites/25544')
-      .then(r => r.json())
-      .then(data => {
-        const altMi = Math.round(data.altitude * 0.621371)
-        const distMi = (lat && lon) ? Math.round(haversine(lat, lon, data.latitude, data.longitude) * 0.621371) : null
-        setIss({ lat: data.latitude, lon: data.longitude, alt: altMi, distance: distMi })
-      })
-      .catch(() => {})
-  }, [lat, lon])
+    const load = () => {
+      if (document.hidden) return
+      fetch('https://api.wheretheiss.at/v1/satellites/25544')
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
+        .then(data => {
+          const altMi = Math.round(data.altitude * 0.621371)
+          const distMi = (lat && lon) ? Math.round(haversine(lat, lon, data.latitude, data.longitude) * 0.621371) : null
+          setIss({ lat: data.latitude, lon: data.longitude, alt: altMi, distance: distMi })
+        })
+        .catch(() => {})
+    }
+    load()
+    const timer = setInterval(load, 60000)
+    return () => clearInterval(timer)
+  }, [lat, lon, refreshKey])
 
   if (!iss) return null
 
@@ -138,8 +146,9 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // ── Main Component ──
-export default function Astronomy({ lat, lon }) {
+export default function Astronomy({ lat, lon, refreshKey }) {
   const [apod, setApod] = useState(null)
+  const [apodFailed, setApodFailed] = useState(false)
   const [showApod, setShowApod] = useState(false)
   const [showPlanets, setShowPlanets] = useState(false)
   const [showShowers, setShowShowers] = useState(false)
@@ -169,7 +178,11 @@ export default function Astronomy({ lat, lon }) {
   const visiblePlanets = planets.filter(p => p.visible)
   const showers = useMemo(getUpcomingShowers, [])
 
-  useEffect(() => { getAPOD().then(setApod).catch(() => {}) }, [])
+  // getAPOD() rate-limits itself (date cache + hourly retry in localStorage),
+  // so calling it on every app refresh is cheap
+  useEffect(() => {
+    getAPOD().then(a => { setApod(a); setApodFailed(false) }).catch(() => setApodFailed(true))
+  }, [refreshKey])
 
   const now = new Date()
   const sunProgress = sunMoon.sunrise && sunMoon.sunset
@@ -381,10 +394,16 @@ export default function Astronomy({ lat, lon }) {
 
         {/* ISS */}
         <div className="border-t border-border/30 pt-2">
-          <ISSSection lat={lat} lon={lon} />
+          <ISSSection lat={lat} lon={lon} refreshKey={refreshKey} />
         </div>
 
         {/* NASA APOD */}
+        {!apod && apodFailed && (
+          <div className="border-t border-border/30 pt-3 flex items-center gap-2 text-text-muted text-xs">
+            <span className="text-lg">{"\uD83C\uDF0C"}</span>
+            NASA Picture of the Day couldn&apos;t load. Will retry on the next refresh.
+          </div>
+        )}
         {apod && (
           <div className="border-t border-border/30 pt-3">
             <button onClick={() => setShowApod(!showApod)} className="text-left w-full">

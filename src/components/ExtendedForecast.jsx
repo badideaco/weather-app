@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getExtendedForecast } from '../api'
 import { TZ } from '../timezone'
+import SectionNotice from './SectionNotice'
 
 const WMO_EMOJI = {
   0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
@@ -23,18 +24,20 @@ function getDayName(dateStr, i) {
   return d.toLocaleDateString('en-US', { weekday: 'short', timeZone: TZ })
 }
 
-export default function ExtendedForecast({ lat, lon }) {
+export default function ExtendedForecast({ lat, lon, refreshKey }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     getExtendedForecast(lat, lon)
-      .then(setData)
-      .catch(() => {})
+      .then(d => { setData(d); setFailed(false) })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
-  }, [lat, lon])
+  }, [lat, lon, refreshKey])
 
+  if (!loading && !data?.length && failed) return <SectionNotice title="Extended Outlook" source="Open-Meteo" />
   if (loading || !data?.length) return null
 
   // Show days 8-16 (the extended part, since NWS covers 1-7)

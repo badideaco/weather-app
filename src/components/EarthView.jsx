@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { getSatelliteFrames, getEPICImages } from '../api'
-import { formatTime, formatDate } from '../timezone'
+import { formatTime, formatDate, relativeLabel } from '../timezone'
 
 const VIEWS = [
   { id: 'goes-east', label: 'GOES East', type: 'goes', sector: 'FD', desc: 'Americas + Atlantic' },
@@ -9,16 +9,6 @@ const VIEWS = [
   { id: 'europe', label: 'Meteosat EU', type: 'static', url: 'https://eumetview.eumetsat.int/static-images/latestImages/EUMETSAT_MSG_RGBNatColourEnhncd_FullResolution.jpg', desc: 'Europe + Africa' },
   { id: 'indian', label: 'Meteosat IO', type: 'static', url: 'https://eumetview.eumetsat.int/static-images/latestImages/EUMETSAT_MSGIODC_RGBNatColourEnhncd_FullResolution.jpg', desc: 'Indian Ocean' },
 ]
-
-function relativeLabel(unixSec) {
-  const diffMin = Math.round((unixSec - Date.now() / 1000) / 60)
-  if (Math.abs(diffMin) <= 1) return 'Now'
-  if (diffMin < 0) {
-    const hrs = Math.abs(diffMin) >= 60 ? `${Math.floor(Math.abs(diffMin) / 60)}h ${Math.abs(diffMin) % 60}m` : `${Math.abs(diffMin)}m`
-    return `${hrs} ago`
-  }
-  return `+${diffMin}m`
-}
 
 export default function EarthView() {
   const [view, setView] = useState('goes-east')

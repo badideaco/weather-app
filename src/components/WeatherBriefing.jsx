@@ -22,57 +22,73 @@ function getCacheKey(personality) {
   return `${CACHE_PREFIX}-${personality}`
 }
 
-function getCachedBriefing(personality) {
+// A cached briefing is only reused for the same set of active alerts: one
+// written before a warning was issued must not sit under the warning banner.
+// alertSig null = alerts not known yet (skip the check).
+function getCachedBriefing(personality, alertSig = null) {
   try {
     const cached = JSON.parse(localStorage.getItem(getCacheKey(personality)) || '{}')
-    if (cached.text && Date.now() - cached.time < CACHE_TTL) return cached.text
+    if (cached.text && Date.now() - cached.time < CACHE_TTL &&
+        (alertSig == null || (cached.alertSig ?? '') === alertSig)) return cached.text
   } catch {}
   return null
 }
 
-export default function WeatherBriefing({ observation, forecast, hourly, alerts, locationName }) {
+export default function WeatherBriefing({ observation, forecast, hourly, alerts, locationName, refreshKey }) {
   const [personality, setPersonality] = useState(getSavedPersonality)
   const [briefing, setBriefing] = useState(() => getCachedBriefing(getSavedPersonality()))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const fetchedRef = useRef(false)
+  const [retryNonce, setRetryNonce] = useState(0)
+  const lastRequestRef = useRef(null)
   const currentPersonality = PERSONALITIES.find(p => p.key === personality) || PERSONALITIES[0]
+  // Event types, not alert ids: NWS issues a new id for every update to the
+  // same warning, which would regenerate the briefing each time
+  const alertSig = alerts ? [...new Set(alerts.map(a => a.event))].sort().join('|') : null
 
-  // Reset fetchedRef when location changes so briefing re-fetches for new location
-  const prevLocationRef = useRef(locationName)
+  // One request per (personality, alerts, app refresh, location, manual retry).
+  // Previously a ref latched after the first fetch and only a location change
+  // cleared it, so the header refresh and the 10-min refresh never updated it.
+  // The 30-min cache still rate-limits the periodic refreshes.
   useEffect(() => {
-    if (locationName && locationName !== prevLocationRef.current) {
-      fetchedRef.current = false
-      prevLocationRef.current = locationName
+    const cached = getCachedBriefing(personality, alertSig ?? '')
+    if (cached) {
+      lastRequestRef.current = null // any request still in flight no longer owns the card
+      setBriefing(cached)
+      setError(null)
+      setLoading(false)
+      return
     }
-  }, [locationName])
-
-  useEffect(() => {
-    const cached = getCachedBriefing(personality)
-    if (cached) { setBriefing(cached); return }
-    if (fetchedRef.current || !observation || !forecast) return
-    fetchedRef.current = true
+    if (!observation || !forecast) return
+    const requestKey = [personality, alertSig, refreshKey, locationName, retryNonce].join('§')
+    if (lastRequestRef.current === requestKey) return
+    lastRequestRef.current = requestKey
 
     setLoading(true)
+    setError(null) // a past failure must not mask this attempt's result
     const context = buildContext(observation, forecast, hourly, alerts, locationName)
 
+    const isCurrent = () => lastRequestRef.current === requestKey
     fetch(BRIEFING_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ context, personality }),
+      signal: AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined,
     })
       .then(r => r.json())
       .then(data => {
         if (data.briefing) {
+          localStorage.setItem(getCacheKey(personality), JSON.stringify({ text: data.briefing, time: Date.now(), alertSig: alertSig ?? '' }))
+          if (!isCurrent()) return // a newer request (e.g. personality switch) owns the card
           setBriefing(data.briefing)
-          localStorage.setItem(getCacheKey(personality), JSON.stringify({ text: data.briefing, time: Date.now() }))
-        } else {
+          setError(null)
+        } else if (isCurrent()) {
           setError('Could not generate briefing')
         }
       })
-      .catch(() => setError('Briefing unavailable'))
-      .finally(() => setLoading(false))
-  }, [observation, forecast, hourly, alerts, locationName, personality])
+      .catch(() => { if (isCurrent()) setError('Briefing unavailable') })
+      .finally(() => { if (isCurrent()) setLoading(false) })
+  }, [observation, forecast, hourly, alerts, alertSig, locationName, personality, refreshKey, retryNonce])
 
   const handlePersonalityChange = (key) => {
     setPersonality(key)
@@ -80,14 +96,13 @@ export default function WeatherBriefing({ observation, forecast, hourly, alerts,
     const cached = getCachedBriefing(key)
     setBriefing(cached)
     setError(null)
-    fetchedRef.current = false
   }
 
   const handleRefresh = () => {
     localStorage.removeItem(getCacheKey(personality))
     setBriefing(null)
-    fetchedRef.current = false
     setError(null)
+    setRetryNonce(n => n + 1)
   }
 
   if (!observation && !forecast) return null
@@ -143,7 +158,7 @@ function buildContext(obs, forecast, hourly, alerts, location) {
   const parts = [`Location: ${location || 'Unknown'}`]
 
   if (obs) {
-    parts.push(`Current: ${obs.temperature}°F, ${obs.description}, Wind ${obs.windSpeed} mph${obs.windGust ? ` gusting ${obs.windGust}` : ''}, Humidity ${obs.humidity}%`)
+    parts.push(`Current: ${obs.temperature}°F, ${obs.description || 'no weather reported'}, Wind ${obs.windSpeed} mph${obs.windGust ? ` gusting ${obs.windGust}` : ''}, Humidity ${obs.humidity}%`)
   }
 
   if (alerts?.length) {
