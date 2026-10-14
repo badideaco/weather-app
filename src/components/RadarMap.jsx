@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Polygon, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, CircleMarker, Polygon, Tooltip, useMap } from 'react-leaflet'
+import DarkBasemap from './DarkBasemap'
 import L from 'leaflet'
 import { getRadarFrames } from '../api'
 import { formatTime, TZ } from '../timezone'
@@ -284,8 +285,7 @@ export default function RadarMap({ lat, lon, alerts }) {
               zoomControl={false}
               attributionControl={false}
             >
-              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" subdomains="abcd" />
-              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" subdomains="abcd" zIndex={20} />
+              <DarkBasemap />
               {radarData && <RadarOverlay frames={radarData.frames} host={radarData.host} currentFrame={currentFrame} />}
               {showLightning && <LightningLayer />}
               <StormPolygons alerts={alerts} />

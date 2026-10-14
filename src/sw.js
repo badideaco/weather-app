@@ -41,13 +41,23 @@ registerRoute(
   })
 )
 
+// Basemap (src/components/DarkBasemap.jsx): requested with crossOrigin, so
+// responses are real 200s, not opaque.
 registerRoute(
-  ({ url }) => /^[abcd]\.basemaps\.cartocdn\.com$/.test(url.host),
+  ({ url }) => url.host === 'server.arcgisonline.com' && url.pathname.includes('/MapServer/tile/'),
   new CacheFirst({
-    cacheName: 'map-tiles',
-    plugins: [opaqueOk, new ExpirationPlugin({ maxEntries: 500, maxAgeSeconds: 86400 })],
+    cacheName: 'basemap-tiles',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [200] }),
+      new ExpirationPlugin({ maxEntries: 500, maxAgeSeconds: 86400, purgeOnQuotaError: true }),
+    ],
   })
 )
+
+// 'map-tiles' held CARTO tiles, which turned into "API KEY REQUIRED" images
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.delete('map-tiles'))
+})
 
 // ── Web Push ──
 

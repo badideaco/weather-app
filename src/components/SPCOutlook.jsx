@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { MapContainer, TileLayer, Polygon, CircleMarker, Tooltip } from 'react-leaflet'
+import { MapContainer, Polygon, CircleMarker, Tooltip } from 'react-leaflet'
+import DarkBasemap from './DarkBasemap'
 import { getSPCOutlook } from '../api'
 import 'leaflet/dist/leaflet.css'
 
@@ -71,8 +72,7 @@ export default function SPCOutlook({ lat, lon }) {
             zoomControl={false}
             attributionControl={false}
           >
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" subdomains="abcd" />
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" subdomains="abcd" zIndex={20} />
+            <DarkBasemap />
             {data.map((area, i) => {
               const risk = riskFromLabel(area.risk)
               if (area.polygon.length < 3) return null

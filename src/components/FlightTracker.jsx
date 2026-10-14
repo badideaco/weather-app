@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet'
+import DarkBasemap from './DarkBasemap'
 import L from 'leaflet'
 import { getNearbyFlights } from '../api'
 import 'leaflet/dist/leaflet.css'
@@ -307,15 +308,7 @@ export default function FlightTracker({ lat, lon }) {
               zoomControl={false}
               attributionControl={false}
             >
-              <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-                subdomains="abcd"
-              />
-              <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
-                subdomains="abcd"
-                zIndex={20}
-              />
+              <DarkBasemap />
               <FlightMarkers flights={flights} />
               <MapCenter lat={lat} lon={lon} />
               <CircleMarker
